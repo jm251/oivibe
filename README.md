@@ -17,7 +17,7 @@ Production-ready Next.js 15 dashboard for live NSE F&O intelligence.
 - CE vs PE flow and PCR metrics
 - Strategy Lab with templates/custom legs, payoff and Greeks
 - Streaming SSE pipeline (`snapshot`, `tick`, `heartbeat`, `error`)
-- Secure Upstox access-token session storage via encrypted HttpOnly cookie
+- Secure Upstox OAuth/access-token session storage via encrypted HttpOnly cookie
 
 ## Environment
 
@@ -27,11 +27,12 @@ Copy `.env.example` to `.env` and set values:
 SESSION_SECRET=replace-with-32-char-secret
 UPSTOX_API_KEY=
 UPSTOX_API_SECRET=
-UPSTOX_REDIRECT_URI=
+UPSTOX_REDIRECT_URI=https://your-domain/api/upstox/callback
 UPSTOX_ACCESS_TOKEN=
 ```
 
 If `UPSTOX_ACCESS_TOKEN` is invalid/missing, OI VIBE runs in realistic live simulator mode.
+If you want browser login instead of pasting a token, `UPSTOX_REDIRECT_URI` must exactly match the callback URL registered in your Upstox app.
 
 ## Run
 

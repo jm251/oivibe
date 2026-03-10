@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Activity, Download, PlugZap, RefreshCw, WifiOff } from "lucide-react";
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -62,6 +62,7 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
   const { isFeatureLocked, incrementApiCalls } = usePlanStore();
 
   const [accessToken, setAccessToken] = useState("");
+  const oauthLoginHref = "/api/upstox/login?returnTo=/";
 
   const connectMutation = useMutation({
     mutationFn: async () => {
@@ -201,6 +202,22 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
                 </DialogHeader>
 
                 <div className="space-y-3">
+                  <div className="rounded-lg border border-border/80 bg-background/60 p-3">
+                    <p className="text-sm font-medium text-foreground">
+                      Preferred login
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Redirect through Upstox OAuth and store the token in an
+                      encrypted session cookie.
+                    </p>
+                    <a
+                      href={oauthLoginHref}
+                      className={buttonVariants({ className: "mt-3" })}
+                    >
+                      Continue with Upstox
+                    </a>
+                  </div>
+
                   <div className="space-y-1">
                     <Label htmlFor="upstox-token">Access Token</Label>
                     <Input

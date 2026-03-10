@@ -2,6 +2,13 @@ export interface UpstoxCredentials {
   accessToken: string;
 }
 
+export interface UpstoxTokenExchangeResponse {
+  access_token?: string;
+  token_type?: string;
+  expires_at?: string;
+  user_id?: string;
+}
+
 export interface UpstoxOptionContract {
   expiry: string;
   instrument_key: string;

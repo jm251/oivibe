@@ -6,8 +6,10 @@ import {
   UpstoxChainEntry,
   UpstoxChainSnapshot,
   UpstoxCredentials,
-  UpstoxOptionContract
+  UpstoxOptionContract,
+  UpstoxTokenExchangeResponse
 } from "@/lib/upstox/types";
+import { env, hasUpstoxOauthConfig } from "@/lib/env";
 
 const API_BASE_URL = "https://api.upstox.com";
 const CONTRACT_CACHE_MS = 5 * 60 * 1000;
@@ -23,8 +25,8 @@ interface UpstoxEnvelope<T> {
   errors?: Array<{ errorCode?: string; message?: string }>;
 }
 
-function sanitize(value: string) {
-  return value.trim().replace(/^['\"]|['\"]$/g, "");
+function sanitize(value: string | undefined) {
+  return value?.trim().replace(/^['\"]|['\"]$/g, "") ?? "";
 }
 
 async function fetchUpstox<T>(
@@ -57,6 +59,55 @@ async function fetchUpstox<T>(
   }
 
   return payload.data as T;
+}
+
+export async function exchangeUpstoxAuthorizationCode(code: string) {
+  if (!hasUpstoxOauthConfig) {
+    throw new Error("Upstox OAuth is not configured");
+  }
+
+  const params = new URLSearchParams();
+  params.set("code", sanitize(code));
+  params.set("client_id", sanitize(env.UPSTOX_API_KEY));
+  params.set("client_secret", sanitize(env.UPSTOX_API_SECRET));
+  params.set("redirect_uri", sanitize(env.UPSTOX_REDIRECT_URI));
+  params.set("grant_type", "authorization_code");
+
+  const response = await fetch(`${API_BASE_URL}/v2/login/authorization/token`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: params.toString(),
+    cache: "no-store"
+  });
+
+  const text = await response.text();
+  let payload: UpstoxTokenExchangeResponse & {
+    status?: string;
+    errors?: Array<{ errorCode?: string; message?: string }>;
+  };
+
+  try {
+    payload = JSON.parse(text) as UpstoxTokenExchangeResponse & {
+      status?: string;
+      errors?: Array<{ errorCode?: string; message?: string }>;
+    };
+  } catch {
+    throw new Error("Upstox token exchange returned non-JSON payload");
+  }
+
+  const accessToken = sanitize(payload.access_token);
+  if (!response.ok || !accessToken) {
+    const message =
+      payload.errors?.[0]?.message ??
+      payload.errors?.[0]?.errorCode ??
+      "Upstox token exchange failed";
+    throw new Error(message);
+  }
+
+  return accessToken;
 }
 
 async function fetchOptionContracts(

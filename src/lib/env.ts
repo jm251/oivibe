@@ -21,3 +21,6 @@ export const env = envSchema.parse({
 });
 
 export const hasEnvUpstoxCredentials = Boolean(env.UPSTOX_ACCESS_TOKEN);
+export const hasUpstoxOauthConfig = Boolean(
+  env.UPSTOX_API_KEY && env.UPSTOX_API_SECRET && env.UPSTOX_REDIRECT_URI
+);
