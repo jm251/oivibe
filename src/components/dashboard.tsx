@@ -74,11 +74,13 @@ export function Dashboard() {
               <FlowPanel aggregates={aggregates} />
               <MaxPainPanel rows={rows} spot={spot} />
             </div>
-            <div className="space-y-4 xl:col-span-8">
+            <div className="flex min-h-0 flex-col gap-4 xl:col-span-8">
               <MarketChartsPanel timeline={timeline} />
-              <FeatureGate feature="full-chain" title="Option Chain Grid">
-                <ChainGridPanel rows={rows} />
-              </FeatureGate>
+              <div className="min-h-0 flex-1">
+                <FeatureGate feature="full-chain" title="Option Chain Grid">
+                  <ChainGridPanel rows={rows} />
+                </FeatureGate>
+              </div>
             </div>
           </section>
 

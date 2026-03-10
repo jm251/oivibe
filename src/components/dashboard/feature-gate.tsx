@@ -54,7 +54,7 @@ export function FeatureGate({ feature, title, description, children }: FeatureGa
   const info = FEATURE_LABELS[feature];
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-border/80">
+    <div className="relative h-full overflow-hidden rounded-xl border border-border/80">
       <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
         <div className="flex flex-col items-center gap-3 px-6 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-warning/15">
@@ -72,7 +72,7 @@ export function FeatureGate({ feature, title, description, children }: FeatureGa
           </PricingModal>
         </div>
       </div>
-      <div className="pointer-events-none opacity-20 blur-sm">
+      <div className="pointer-events-none h-full opacity-20 blur-sm">
         {children}
       </div>
     </div>

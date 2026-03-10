@@ -16,11 +16,11 @@ import { OptionChainRow } from "@/lib/types";
 
 export function ChainGridPanel({ rows }: { rows: OptionChainRow[] }) {
   return (
-    <Card className="h-full">
+    <Card className="flex h-full min-h-[360px] flex-col">
       <CardHeader>
         <CardTitle>Option Chain Grid</CardTitle>
       </CardHeader>
-      <CardContent className="h-[360px]">
+      <CardContent className="min-h-0 flex-1">
         <ScrollArea className="h-full pr-2">
           <Table>
             <TableHeader>
