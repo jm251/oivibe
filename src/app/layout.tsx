@@ -1,39 +1,18 @@
 import type { Metadata } from "next";
-import { Playfair_Display, Space_Grotesk } from "next/font/google";
-import "./globals.css";
+import "@/app/globals.css";
 
-const displayFont = Playfair_Display({
-  variable: "--font-display",
-  subsets: ["latin"],
-  weight: ["500", "700"],
-});
-
-const bodyFont = Space_Grotesk({
-  variable: "--font-body",
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
-});
+import { Providers } from "@/components/providers";
 
 export const metadata: Metadata = {
-  title: "Valentine AI Suite",
-  description:
-    "Web-first Valentine concierge app with date plans, gifts, content, voice, media cards, and hotline sessions.",
-  icons: {
-    icon: "/valentine-icon.svg",
-    shortcut: "/valentine-icon.svg",
-    apple: "/valentine-icon.svg",
-  },
+  title: "OI VIBE",
+  description: "Live NSE F&O intelligence dashboard"
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body className={`${displayFont.variable} ${bodyFont.variable} antialiased`}>
-        {children}
+    <html lang="en" className="dark">
+      <body className="min-h-screen antialiased">
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

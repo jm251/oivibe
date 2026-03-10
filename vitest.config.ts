@@ -1,21 +1,16 @@
-import { defineConfig } from "vitest/config";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-const dirname = path.dirname(fileURLToPath(import.meta.url));
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "html"],
-    },
+    globals: true,
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx", "tests/**/*.test.ts"]
   },
   resolve: {
     alias: {
-      "@": path.resolve(dirname, "src"),
-    },
-  },
+      "@": path.resolve(__dirname, "src")
+    }
+  }
 });
