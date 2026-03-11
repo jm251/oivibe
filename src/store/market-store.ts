@@ -23,6 +23,8 @@ interface MarketState {
   updatedAt: string;
   lastTickAt: string | null;
   timeline: TimelinePoint[];
+  replayActive: boolean;
+  replayFrameLabel?: string;
   setSymbol: (symbol: SupportedSymbol) => void;
   setExpiry: (expiry: string) => void;
   setConnection: (connection: {
@@ -47,6 +49,17 @@ interface MarketState {
     spot: number;
     ts: string;
   }) => void;
+  applyReplayFrame: (payload: {
+    mode: "live" | "mock";
+    expiry: string;
+    rows: OptionChainRow[];
+    aggregates: ChainAggregates;
+    spot: number;
+    updatedAt: string;
+    timeline: TimelinePoint[];
+    label: string;
+  }) => void;
+  stopReplay: () => void;
 }
 
 const emptyAggregates: ChainAggregates = {
@@ -90,6 +103,8 @@ export const useMarketStore = create<MarketState>((set) => ({
   updatedAt: "",
   lastTickAt: null,
   timeline: [],
+  replayActive: false,
+  replayFrameLabel: undefined,
   setSymbol: (symbol) => set({ symbol }),
   setExpiry: (expiry) => set({ expiry }),
   setConnection: (connection) =>
@@ -111,6 +126,8 @@ export const useMarketStore = create<MarketState>((set) => ({
       spot: snapshot.spot,
       updatedAt: snapshot.updatedAt,
       lastTickAt: snapshot.updatedAt,
+      replayActive: false,
+      replayFrameLabel: undefined,
       timeline: appendTimeline(
         state.timeline,
         {
@@ -140,5 +157,27 @@ export const useMarketStore = create<MarketState>((set) => ({
           payload.ts
         )
       };
-    })
+    }),
+  applyReplayFrame: (payload) =>
+    set((state) => ({
+      mode: payload.mode,
+      connected: state.connected,
+      degraded: false,
+      message: "Replaying cached local market session.",
+      expiry: payload.expiry,
+      rows: payload.rows,
+      aggregates: payload.aggregates,
+      spot: payload.spot,
+      updatedAt: payload.updatedAt,
+      lastTickAt: payload.updatedAt,
+      replayActive: true,
+      replayFrameLabel: payload.label,
+      timeline: payload.timeline
+    })),
+  stopReplay: () =>
+    set((state) => ({
+      replayActive: false,
+      replayFrameLabel: undefined,
+      message: state.mode === "live" && state.degraded ? state.message : undefined
+    }))
 }));

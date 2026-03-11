@@ -28,6 +28,8 @@ import { UoaPanel } from "@/components/dashboard/uoa-panel";
 import { UsageBanner } from "@/components/dashboard/usage-banner";
 import { VolSurfacePanel } from "@/components/dashboard/vol-surface-panel";
 import { WhatIfPanel } from "@/components/dashboard/whatif-panel";
+import { ReplayCachePanel } from "@/components/dashboard/replay-cache-panel";
+import { useReplayRecorder } from "@/hooks/use-replay-cache";
 
 export function Dashboard() {
   const { symbol, expiry, rows, aggregates, spot, updatedAt, timeline } = useMarketStore();
@@ -36,6 +38,7 @@ export function Dashboard() {
   const expiriesQuery = useExpiries(symbol);
   useOptionChain(symbol, expiry);
   useMarketStream(symbol, expiry);
+  useReplayRecorder();
 
   return (
     <>
@@ -82,6 +85,10 @@ export function Dashboard() {
                 </FeatureGate>
               </div>
             </div>
+          </section>
+
+          <section>
+            <ReplayCachePanel symbol={symbol} expiry={expiry} />
           </section>
 
           {/* Row 2: Buildup + Straddle + GEX */}

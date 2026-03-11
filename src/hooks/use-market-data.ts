@@ -121,11 +121,12 @@ export function useOptionChain(symbol: SupportedSymbol, expiry: string) {
   const applySnapshot = useMarketStore((state) => state.applySnapshot);
   const setConnection = useMarketStore((state) => state.setConnection);
   const currentMode = useMarketStore((state) => state.mode);
+  const replayActive = useMarketStore((state) => state.replayActive);
   const track = useTrackApiCall();
 
   const query = useQuery({
     queryKey: ["option-chain", symbol, expiry],
-    enabled: Boolean(expiry),
+    enabled: Boolean(expiry) && !replayActive,
     queryFn: async () => {
       track();
       return fetcher<{
@@ -195,6 +196,7 @@ export function useMarketStream(symbol: SupportedSymbol, expiry: string) {
   const applyTick = useMarketStore((state) => state.applyTick);
   const setConnection = useMarketStore((state) => state.setConnection);
   const currentMode = useMarketStore((state) => state.mode);
+  const replayActive = useMarketStore((state) => state.replayActive);
 
   const streamUrl = useMemo(() => {
     if (!expiry) return null;
@@ -202,7 +204,7 @@ export function useMarketStream(symbol: SupportedSymbol, expiry: string) {
   }, [symbol, expiry]);
 
   useEffect(() => {
-    if (!streamUrl) return;
+    if (!streamUrl || replayActive) return;
 
     const source = new EventSource(streamUrl);
 
@@ -277,5 +279,5 @@ export function useMarketStream(symbol: SupportedSymbol, expiry: string) {
     return () => {
       source.close();
     };
-  }, [applySnapshot, applyTick, currentMode, expiry, setConnection, streamUrl]);
+  }, [applySnapshot, applyTick, currentMode, expiry, replayActive, setConnection, streamUrl]);
 }
