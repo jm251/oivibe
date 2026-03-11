@@ -8,6 +8,34 @@ import {
 } from "@/lib/upstox/rest";
 import { OptionChainSnapshot, SupportedSymbol } from "@/lib/types";
 
+const liveExpiryCache = new Map<SupportedSymbol, string[]>();
+const liveSnapshotCache = new Map<string, OptionChainSnapshot>();
+
+function snapshotCacheKey(symbol: SupportedSymbol, expiry: string) {
+  return `${symbol}:${expiry}`;
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Unknown live data error";
+}
+
+function cacheSnapshot(snapshot: OptionChainSnapshot) {
+  liveSnapshotCache.set(snapshotCacheKey(snapshot.symbol, snapshot.expiry), {
+    ...snapshot,
+    degraded: false,
+    message: undefined
+  });
+}
+
+export function getCachedLiveSnapshot(symbol: SupportedSymbol, expiry: string) {
+  return liveSnapshotCache.get(snapshotCacheKey(symbol, expiry)) ?? null;
+}
+
+export function resetMarketServiceCaches() {
+  liveExpiryCache.clear();
+  liveSnapshotCache.clear();
+}
+
 export function listUnderlyings() {
   return Object.values(UNDERLYINGS);
 }
@@ -23,7 +51,12 @@ export function sanitizeSymbol(symbol: string | null | undefined): SupportedSymb
 
 export async function resolveExpiries(
   symbol: SupportedSymbol
-): Promise<{ mode: "live" | "mock"; expiries: string[] }> {
+): Promise<{
+  mode: "live" | "mock";
+  expiries: string[];
+  degraded?: boolean;
+  message?: string;
+}> {
   const credentials = await resolveRuntimeCredentials();
 
   if (credentials.credentials) {
@@ -31,10 +64,27 @@ export async function resolveExpiries(
       const expiries = await fetchUpstoxExpiries(credentials.credentials, symbol);
 
       if (expiries.length > 0) {
+        liveExpiryCache.set(symbol, expiries);
         return { mode: "live", expiries };
       }
-    } catch {
-      // fallback below
+    } catch (error) {
+      const cachedExpiries = liveExpiryCache.get(symbol);
+
+      if (cachedExpiries?.length) {
+        return {
+          mode: "live",
+          expiries: cachedExpiries,
+          degraded: true,
+          message: "Upstox expiry refresh failed. Using cached expiries."
+        };
+      }
+
+      return {
+        mode: "live",
+        expiries: getMockExpiries(symbol),
+        degraded: true,
+        message: `Upstox expiry refresh failed: ${getErrorMessage(error)}`
+      };
     }
   }
 
@@ -58,7 +108,7 @@ export async function resolveOptionChainSnapshot(
       );
 
       if (snapshot.rows.length > 0) {
-        return {
+        const nextSnapshot: OptionChainSnapshot = {
           mode: "live",
           symbol,
           expiry: snapshot.expiry,
@@ -67,9 +117,26 @@ export async function resolveOptionChainSnapshot(
           aggregates: computeAggregates(snapshot.rows),
           updatedAt: new Date().toISOString()
         };
+
+        cacheSnapshot(nextSnapshot);
+        return nextSnapshot;
       }
-    } catch {
-      // fallback to mock
+    } catch (error) {
+      const requestedExpiry = expiry ?? getMockExpiries(symbol)[0];
+      const cachedSnapshot = requestedExpiry
+        ? getCachedLiveSnapshot(symbol, requestedExpiry)
+        : null;
+
+      if (cachedSnapshot) {
+        return {
+          ...cachedSnapshot,
+          mode: "live",
+          degraded: true,
+          message: "Upstox refresh failed. Showing last successful live snapshot."
+        };
+      }
+
+      throw new Error(`Upstox live snapshot failed: ${getErrorMessage(error)}`);
     }
   }
 

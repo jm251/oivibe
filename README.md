@@ -13,11 +13,12 @@ Production-ready Next.js 15 dashboard for live NSE F&O intelligence.
 
 ## Features
 
-- OI wall heatmap driven by real-time ?OI
+- OI wall heatmap driven by real-time delta OI
 - CE vs PE flow and PCR metrics
 - Strategy Lab with templates/custom legs, payoff and Greeks
 - Streaming SSE pipeline (`snapshot`, `tick`, `heartbeat`, `error`)
 - Secure Upstox OAuth/access-token session storage via encrypted HttpOnly cookie
+- Live mode stays live on transient Upstox failures and falls back to cached snapshots instead of silently switching to mock
 
 ## Environment
 
@@ -33,6 +34,19 @@ UPSTOX_ACCESS_TOKEN=
 
 If `UPSTOX_ACCESS_TOKEN` is invalid/missing, OI VIBE runs in realistic live simulator mode.
 If you want browser login instead of pasting a token, `UPSTOX_REDIRECT_URI` must exactly match the callback URL registered in your Upstox app.
+
+## Upstox Notes
+
+- OI VIBE v1 uses only the free Upstox market-data APIs for authentication, option chain snapshots, and market-data WebSocket streaming.
+- No paid market-data or order APIs are required for the dashboard runtime.
+- Upstox access tokens are daily tokens. When a token expires, OI VIBE keeps the last successful live snapshot and marks the connection as degraded until you reconnect.
+
+Official Upstox docs:
+
+- Authentication: `https://upstox.com/developer/api-documentation/authentication/`
+- Token exchange: `https://upstox.com/developer/api-documentation/get-token/`
+- Put/Call option chain: `https://upstox.com/developer/api-documentation/get-pc-option-chain/`
+- Market Data Feed V3: `https://upstox.com/developer/api-documentation/get-market-data-feed/`
 
 ## Run
 

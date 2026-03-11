@@ -15,7 +15,9 @@ export async function GET(req: Request) {
       spot: snapshot.spot,
       rows: snapshot.rows,
       aggregates: snapshot.aggregates,
-      updatedAt: snapshot.updatedAt
+      updatedAt: snapshot.updatedAt,
+      degraded: snapshot.degraded,
+      message: snapshot.message
     });
   } catch (error) {
     return fail(500, {

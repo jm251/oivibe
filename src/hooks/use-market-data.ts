@@ -34,7 +34,12 @@ export function useSessionStatus() {
 
   useEffect(() => {
     if (query.data) {
-      setConnection({ connected: query.data.connected, mode: query.data.mode });
+      setConnection({
+        connected: query.data.connected,
+        mode: query.data.mode,
+        degraded: false,
+        message: undefined
+      });
     }
   }, [query.data, setConnection]);
 
@@ -66,6 +71,7 @@ export function useExpiries(symbol: SupportedSymbol) {
 export function useOptionChain(symbol: SupportedSymbol, expiry: string) {
   const applySnapshot = useMarketStore((state) => state.applySnapshot);
   const setConnection = useMarketStore((state) => state.setConnection);
+  const currentMode = useMarketStore((state) => state.mode);
   const track = useTrackApiCall();
 
   const query = useQuery({
@@ -80,6 +86,8 @@ export function useOptionChain(symbol: SupportedSymbol, expiry: string) {
         aggregates: any;
         spot: number;
         updatedAt: string;
+        degraded?: boolean;
+        message?: string;
       }>(`/api/option-chain?symbol=${symbol}&expiry=${expiry}`);
     }
   });
@@ -92,11 +100,32 @@ export function useOptionChain(symbol: SupportedSymbol, expiry: string) {
         rows: query.data.rows,
         aggregates: query.data.aggregates,
         spot: query.data.spot,
-        updatedAt: query.data.updatedAt
+        updatedAt: query.data.updatedAt,
+        degraded: query.data.degraded,
+        message: query.data.message
       });
-      setConnection({ connected: query.data.mode === "live", mode: query.data.mode });
+      setConnection({
+        connected: query.data.mode === "live",
+        mode: query.data.mode,
+        degraded: query.data.degraded,
+        message: query.data.message
+      });
     }
   }, [applySnapshot, query.data, setConnection]);
+
+  useEffect(() => {
+    if (query.error && currentMode === "live") {
+      setConnection({
+        connected: true,
+        mode: "live",
+        degraded: true,
+        message:
+          query.error instanceof Error
+            ? query.error.message
+            : "Upstox live snapshot failed."
+      });
+    }
+  }, [currentMode, query.error, setConnection]);
 
   return query;
 }
@@ -104,6 +133,8 @@ export function useOptionChain(symbol: SupportedSymbol, expiry: string) {
 export function useMarketStream(symbol: SupportedSymbol, expiry: string) {
   const applySnapshot = useMarketStore((state) => state.applySnapshot);
   const applyTick = useMarketStore((state) => state.applyTick);
+  const setConnection = useMarketStore((state) => state.setConnection);
+  const currentMode = useMarketStore((state) => state.mode);
 
   const streamUrl = useMemo(() => {
     if (!expiry) return null;
@@ -122,6 +153,8 @@ export function useMarketStream(symbol: SupportedSymbol, expiry: string) {
         aggregates: any;
         spot: number;
         ts: string;
+        degraded?: boolean;
+        message?: string;
       };
 
       applySnapshot({
@@ -130,7 +163,15 @@ export function useMarketStream(symbol: SupportedSymbol, expiry: string) {
         rows: payload.rows,
         aggregates: payload.aggregates,
         spot: payload.spot,
-        updatedAt: payload.ts
+        updatedAt: payload.ts,
+        degraded: payload.degraded,
+        message: payload.message
+      });
+      setConnection({
+        connected: payload.mode === "live",
+        mode: payload.mode,
+        degraded: payload.degraded,
+        message: payload.message
       });
     });
 
@@ -144,12 +185,33 @@ export function useMarketStream(symbol: SupportedSymbol, expiry: string) {
       applyTick(payload);
     });
 
-    source.addEventListener("error", () => {
-      // EventSource reconnect handles transient disconnects.
+    source.addEventListener("error", (event) => {
+      const messageEvent = event as MessageEvent<string>;
+
+      if (messageEvent.data) {
+        try {
+          const payload = JSON.parse(messageEvent.data) as {
+            code: string;
+            message: string;
+            recoverable: boolean;
+          };
+
+          if (currentMode === "live") {
+            setConnection({
+              connected: true,
+              mode: "live",
+              degraded: true,
+              message: payload.message
+            });
+          }
+        } catch {
+          // EventSource reconnect handles transient disconnects.
+        }
+      }
     });
 
     return () => {
       source.close();
     };
-  }, [applySnapshot, applyTick, expiry, streamUrl]);
+  }, [applySnapshot, applyTick, currentMode, expiry, setConnection, streamUrl]);
 }

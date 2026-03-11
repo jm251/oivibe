@@ -57,7 +57,18 @@ function exportCsv(rows: ReturnType<typeof useMarketStore.getState>["rows"], sym
 
 export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
   const queryClient = useQueryClient();
-  const { symbol, expiry, mode, connected, rows, setSymbol, setExpiry, setConnection } =
+  const {
+    symbol,
+    expiry,
+    mode,
+    connected,
+    degraded,
+    message,
+    rows,
+    setSymbol,
+    setExpiry,
+    setConnection
+  } =
     useMarketStore();
   const { isFeatureLocked, incrementApiCalls } = usePlanStore();
 
@@ -104,6 +115,13 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
     exportCsv(rows, symbol);
   };
 
+  const modeTone =
+    mode === "mock" ? "text-warning" : degraded ? "text-warning" : "text-bullish";
+  const connectionTone =
+    mode === "mock" ? "text-warning" : degraded ? "text-warning" : "text-bullish";
+  const connectionLabel =
+    mode === "mock" ? "SIM MODE" : degraded ? "LIVE DEGRADED" : connected ? "AUTH OK" : "DISCONNECTED";
+
   return (
     <div className="rounded-xl border border-border/80 bg-panel/90 p-3 shadow-neon">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -117,7 +135,7 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Mode
             </span>
-            <span className={mode === "live" ? "text-bullish" : "text-warning"}>
+            <span className={modeTone}>
               {mode.toUpperCase()}
             </span>
           </div>
@@ -126,8 +144,8 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Connection
             </span>
-            <span className={connected ? "text-bullish" : "text-warning"}>
-              {connected ? "AUTH OK" : "SIM MODE"}
+            <span className={connectionTone}>
+              {connectionLabel}
             </span>
           </div>
         </div>
@@ -262,6 +280,9 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
           </div>
         </div>
       </div>
+      {message ? (
+        <p className="mt-3 text-xs text-warning">{message}</p>
+      ) : null}
     </div>
   );
 }

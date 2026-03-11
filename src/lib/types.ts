@@ -68,6 +68,8 @@ export interface OptionChainSnapshot {
   rows: OptionChainRow[];
   aggregates: ChainAggregates;
   updatedAt: string;
+  degraded?: boolean;
+  message?: string;
 }
 
 export interface TickDelta {
@@ -132,6 +134,7 @@ export interface StrategySnapshot {
 export interface ConnectionState {
   connected: boolean;
   mode: "live" | "mock";
+  degraded?: boolean;
   message?: string;
 }
 

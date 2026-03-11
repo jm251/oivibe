@@ -4,6 +4,7 @@ import {
   STREAM_HEARTBEAT_MS
 } from "@/lib/constants";
 import { applyTickUpdates, computeAggregates } from "@/lib/market/analytics";
+import { getCachedLiveSnapshot } from "@/lib/market/service";
 import { mockMarketEngine } from "@/lib/mock/simulator";
 import { resolveRuntimeCredentials } from "@/lib/session/runtime";
 import {
@@ -22,6 +23,8 @@ export type StreamEvent =
         aggregates: OptionChainSnapshot["aggregates"];
         spot: number;
         ts: string;
+        degraded?: boolean;
+        message?: string;
       };
     }
   | {
@@ -122,6 +125,26 @@ class StreamHub {
         await this.bootLive(channel, creds.credentials);
         return;
       } catch (error) {
+        const cachedSnapshot = getCachedLiveSnapshot(channel.symbol, channel.expiry);
+
+        if (cachedSnapshot) {
+          channel.mode = "live";
+          channel.snapshot = {
+            ...cachedSnapshot,
+            degraded: true,
+            message: "Upstox stream degraded. Showing cached live snapshot."
+          };
+          channel.oiBySecurity = new Map(
+            channel.snapshot.rows.flatMap((row) => [
+              [row.call.securityId, row.call.oi],
+              [row.put.securityId, row.put.oi]
+            ])
+          );
+          this.broadcastSnapshot(channel, channel.snapshot);
+          this.startHeartbeat(channel);
+          return;
+        }
+
         this.broadcast(channel, {
           event: "error",
           data: {
@@ -129,14 +152,29 @@ class StreamHub {
             message:
               error instanceof Error
                 ? error.message
-                : "Live mode failed. Falling back to mock.",
+                : "Live mode failed to initialize.",
             recoverable: true
           }
         });
+        this.startHeartbeat(channel);
+        return;
       }
     }
 
     this.bootMock(channel);
+  }
+
+  private startHeartbeat(channel: Channel) {
+    if (channel.heartbeatTimer) {
+      clearInterval(channel.heartbeatTimer);
+    }
+
+    channel.heartbeatTimer = setInterval(() => {
+      this.broadcast(channel, {
+        event: "heartbeat",
+        data: { ts: new Date().toISOString() }
+      });
+    }, STREAM_HEARTBEAT_MS);
   }
 
   private bootMock(channel: Channel) {
@@ -174,12 +212,7 @@ class StreamHub {
       });
     }, MOCK_TICK_MS);
 
-    channel.heartbeatTimer = setInterval(() => {
-      this.broadcast(channel, {
-        event: "heartbeat",
-        data: { ts: new Date().toISOString() }
-      });
-    }, STREAM_HEARTBEAT_MS);
+    this.startHeartbeat(channel);
   }
 
   private async bootLive(channel: Channel, credentials: UpstoxCredentials) {
@@ -341,12 +374,7 @@ class StreamHub {
       }
     }, LIVE_SNAPSHOT_REFRESH_MS);
 
-    channel.heartbeatTimer = setInterval(() => {
-      this.broadcast(channel, {
-        event: "heartbeat",
-        data: { ts: new Date().toISOString() }
-      });
-    }, STREAM_HEARTBEAT_MS);
+    this.startHeartbeat(channel);
   }
 
   private stopChannel(channel: Channel) {
@@ -364,7 +392,9 @@ class StreamHub {
         rows: snapshot.rows,
         aggregates: snapshot.aggregates,
         spot: snapshot.spot,
-        ts: snapshot.updatedAt
+        ts: snapshot.updatedAt,
+        degraded: snapshot.degraded,
+        message: snapshot.message
       }
     });
   }

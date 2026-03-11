@@ -15,6 +15,8 @@ interface MarketState {
   expiry: string;
   mode: "live" | "mock";
   connected: boolean;
+  degraded: boolean;
+  message?: string;
   rows: OptionChainRow[];
   aggregates: ChainAggregates;
   spot: number;
@@ -23,7 +25,12 @@ interface MarketState {
   timeline: TimelinePoint[];
   setSymbol: (symbol: SupportedSymbol) => void;
   setExpiry: (expiry: string) => void;
-  setConnection: (connection: { connected: boolean; mode: "live" | "mock" }) => void;
+  setConnection: (connection: {
+    connected: boolean;
+    mode: "live" | "mock";
+    degraded?: boolean;
+    message?: string;
+  }) => void;
   applySnapshot: (snapshot: {
     mode: "live" | "mock";
     expiry: string;
@@ -31,6 +38,8 @@ interface MarketState {
     aggregates: ChainAggregates;
     spot: number;
     updatedAt: string;
+    degraded?: boolean;
+    message?: string;
   }) => void;
   applyTick: (payload: {
     updates: TickDelta[];
@@ -73,6 +82,8 @@ export const useMarketStore = create<MarketState>((set) => ({
   expiry: "",
   mode: "mock",
   connected: false,
+  degraded: false,
+  message: undefined,
   rows: [],
   aggregates: emptyAggregates,
   spot: 0,
@@ -81,10 +92,19 @@ export const useMarketStore = create<MarketState>((set) => ({
   timeline: [],
   setSymbol: (symbol) => set({ symbol }),
   setExpiry: (expiry) => set({ expiry }),
-  setConnection: (connection) => set(connection),
+  setConnection: (connection) =>
+    set({
+      connected: connection.connected,
+      mode: connection.mode,
+      degraded: connection.degraded ?? false,
+      message: connection.message
+    }),
   applySnapshot: (snapshot) =>
     set((state) => ({
       mode: snapshot.mode,
+      connected: snapshot.mode === "live",
+      degraded: snapshot.degraded ?? false,
+      message: snapshot.message,
       expiry: snapshot.expiry,
       rows: snapshot.rows,
       aggregates: snapshot.aggregates,
