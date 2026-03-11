@@ -16,6 +16,7 @@ import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ReplayAnalyticsPanel } from "@/components/dashboard/replay-analytics-panel";
 import {
   clearReplayFrames,
   exportReplaySession,
@@ -514,6 +515,13 @@ export function ReplayCachePanel({ symbol, expiry }: ReplayCachePanelProps) {
                   </p>
                   <p>Degraded frames: {selectedSession.degradedCount}</p>
                 </div>
+              ) : null}
+
+              {selectedSessionDate ? (
+                <ReplayAnalyticsPanel
+                  frames={frames ?? []}
+                  sessionDate={selectedSessionDate}
+                />
               ) : null}
             </>
           ) : (
