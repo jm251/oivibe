@@ -1,11 +1,13 @@
 import Dexie, { type Table } from "dexie";
 
+import { deriveReplaySessionDate, summarizeReplaySessions } from "@/lib/replay/utils";
 import { ChainAggregates, OptionChainRow, SupportedSymbol } from "@/lib/types";
 
 export interface ReplayFrameRecord {
   id?: number;
   symbol: SupportedSymbol;
   expiry: string;
+  sessionDate: string;
   sourceMode: "live" | "mock";
   degraded: boolean;
   message?: string;
@@ -27,6 +29,21 @@ class OiVibeReplayDb extends Dexie {
     this.version(1).stores({
       frames: "++id, [symbol+expiry], symbol, expiry, updatedAt, recordedAt"
     });
+
+    this.version(2)
+      .stores({
+        frames:
+          "++id, [symbol+expiry], [symbol+expiry+sessionDate], sessionDate, symbol, expiry, updatedAt, recordedAt"
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table("frames")
+          .toCollection()
+          .modify((frame: ReplayFrameRecord) => {
+            frame.sessionDate =
+              frame.sessionDate || deriveReplaySessionDate(frame.updatedAt);
+          });
+      });
   }
 }
 
@@ -55,6 +72,7 @@ export async function recordReplayFrame(
   await db.transaction("rw", db.frames, async () => {
     await db.frames.add({
       ...frame,
+      sessionDate: frame.sessionDate || deriveReplaySessionDate(frame.updatedAt),
       recordedAt
     });
 
@@ -80,8 +98,26 @@ export async function recordReplayFrame(
 export async function listReplayFrames(
   symbol: SupportedSymbol,
   expiry: string,
-  limit = MAX_REPLAY_FRAMES_PER_CHAIN
+  limit = MAX_REPLAY_FRAMES_PER_CHAIN,
+  sessionDate?: string
 ) {
+  const db = getReplayDb();
+  if (!db || !expiry) return [];
+
+  const frames = sessionDate
+    ? await db.frames
+        .where("[symbol+expiry+sessionDate]")
+        .equals([symbol, expiry, sessionDate])
+        .sortBy("updatedAt")
+    : await db.frames
+        .where("[symbol+expiry]")
+        .equals([symbol, expiry])
+        .sortBy("updatedAt");
+
+  return frames.slice(-limit);
+}
+
+export async function listReplaySessions(symbol: SupportedSymbol, expiry: string) {
   const db = getReplayDb();
   if (!db || !expiry) return [];
 
@@ -90,17 +126,26 @@ export async function listReplayFrames(
     .equals([symbol, expiry])
     .sortBy("updatedAt");
 
-  return frames.slice(-limit);
+  return summarizeReplaySessions(frames);
 }
 
-export async function clearReplayFrames(symbol: SupportedSymbol, expiry: string) {
+export async function clearReplayFrames(
+  symbol: SupportedSymbol,
+  expiry: string,
+  sessionDate?: string
+) {
   const db = getReplayDb();
   if (!db || !expiry) return;
 
-  const ids = await db.frames
-    .where("[symbol+expiry]")
-    .equals([symbol, expiry])
-    .primaryKeys();
+  const ids = sessionDate
+    ? await db.frames
+        .where("[symbol+expiry+sessionDate]")
+        .equals([symbol, expiry, sessionDate])
+        .primaryKeys()
+    : await db.frames
+        .where("[symbol+expiry]")
+        .equals([symbol, expiry])
+        .primaryKeys();
 
   if (ids.length) {
     await db.frames.bulkDelete(ids);

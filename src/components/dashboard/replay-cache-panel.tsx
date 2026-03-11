@@ -1,14 +1,18 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
 import { format, formatDistanceToNowStrict } from "date-fns";
 import { Pause, Play, Radio, RotateCcw, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { clearReplayFrames, listReplayFrames } from "@/lib/replay/db";
+import {
+  clearReplayFrames,
+  listReplayFrames,
+  listReplaySessions
+} from "@/lib/replay/db";
 import { buildReplayTimeline, summarizeReplayFrames } from "@/lib/replay/utils";
 import { SupportedSymbol } from "@/lib/types";
 import { useMarketStore } from "@/store/market-store";
@@ -24,6 +28,10 @@ const PLAYBACK_INTERVALS: Record<string, number> = {
   "4x": 225
 };
 
+function formatSessionLabel(sessionDate: string) {
+  return format(new Date(`${sessionDate}T00:00:00`), "dd MMM");
+}
+
 export function ReplayCachePanel({ symbol, expiry }: ReplayCachePanelProps) {
   const queryClient = useQueryClient();
   const applyReplayFrame = useMarketStore((state) => state.applyReplayFrame);
@@ -31,14 +39,40 @@ export function ReplayCachePanel({ symbol, expiry }: ReplayCachePanelProps) {
   const replayActive = useMarketStore((state) => state.replayActive);
   const replayFrameLabel = useMarketStore((state) => state.replayFrameLabel);
 
-  const frames = useLiveQuery(
-    () => (expiry ? listReplayFrames(symbol, expiry) : Promise.resolve([])),
-    [symbol, expiry]
-  );
-
+  const [selectedSessionDate, setSelectedSessionDate] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<keyof typeof PLAYBACK_INTERVALS>("1x");
+
+  const sessions = useLiveQuery(
+    () => (expiry ? listReplaySessions(symbol, expiry) : Promise.resolve([])),
+    [symbol, expiry]
+  );
+
+  const frames = useLiveQuery(
+    () =>
+      expiry && selectedSessionDate
+        ? listReplayFrames(symbol, expiry, 360, selectedSessionDate)
+        : Promise.resolve([]),
+    [symbol, expiry, selectedSessionDate]
+  );
+
+  useEffect(() => {
+    if (!sessions?.length) {
+      setSelectedSessionDate("");
+      setSelectedIndex(0);
+      setPlaying(false);
+      return;
+    }
+
+    const selectedStillExists = sessions.some(
+      (session) => session.sessionDate === selectedSessionDate
+    );
+
+    if (!selectedSessionDate || !selectedStillExists) {
+      setSelectedSessionDate(sessions[0]?.sessionDate ?? "");
+    }
+  }, [selectedSessionDate, sessions]);
 
   useEffect(() => {
     if (!frames?.length) {
@@ -49,7 +83,7 @@ export function ReplayCachePanel({ symbol, expiry }: ReplayCachePanelProps) {
 
     setSelectedIndex(frames.length - 1);
     setPlaying(false);
-  }, [frames?.length, symbol, expiry]);
+  }, [frames?.length, symbol, expiry, selectedSessionDate]);
 
   useEffect(() => {
     if (!playing || !frames?.length) {
@@ -96,15 +130,16 @@ export function ReplayCachePanel({ symbol, expiry }: ReplayCachePanelProps) {
     });
   }, [applyReplayFrame, frames, replayActive, selectedIndex]);
 
-  const summary = useMemo(
-    () => summarizeReplayFrames(frames ?? []),
-    [frames]
+  const summary = useMemo(() => summarizeReplayFrames(frames ?? []), [frames]);
+  const selectedFrame = frames?.[selectedIndex];
+  const selectedSession = sessions?.find(
+    (session) => session.sessionDate === selectedSessionDate
   );
 
-  const selectedFrame = frames?.[selectedIndex];
-
   const startReplay = () => {
-    if (!frames?.length || !selectedFrame) return;
+    if (!frames?.length || !selectedFrame) {
+      return;
+    }
 
     applyReplayFrame({
       mode: selectedFrame.sourceMode,
@@ -132,7 +167,7 @@ export function ReplayCachePanel({ symbol, expiry }: ReplayCachePanelProps) {
     if (replayActive) {
       stopReplay();
     }
-    await clearReplayFrames(symbol, expiry);
+    await clearReplayFrames(symbol, expiry, selectedSessionDate || undefined);
     await queryClient.invalidateQueries();
   };
 
@@ -189,91 +224,140 @@ export function ReplayCachePanel({ symbol, expiry }: ReplayCachePanelProps) {
         </div>
 
         {frames?.length ? (
-          <>
-            <div className="space-y-2 rounded-lg border border-border/80 bg-background/40 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium">
-                    {symbol} {expiry}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {selectedFrame
-                      ? `Selected ${selectedIndex + 1} of ${frames.length} · ${formatDistanceToNowStrict(
-                          new Date(selectedFrame.updatedAt),
-                          { addSuffix: true }
-                        )}`
-                      : "No frame selected"}
-                  </p>
-                  {replayActive && replayFrameLabel ? (
-                    <p className="mt-1 text-xs text-bullish">
-                      Replaying {replayFrameLabel}
-                    </p>
-                  ) : null}
-                </div>
+          <div className="space-y-2 rounded-lg border border-border/80 bg-background/40 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              {sessions?.map((session) => {
+                const active = session.sessionDate === selectedSessionDate;
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    value={speed}
-                    onChange={(event) =>
-                      setSpeed(event.target.value as keyof typeof PLAYBACK_INTERVALS)
-                    }
-                    className="h-9 rounded-md border border-border bg-background px-3 text-sm"
+                return (
+                  <button
+                    key={session.sessionDate}
+                    type="button"
+                    onClick={() => setSelectedSessionDate(session.sessionDate)}
+                    className={`rounded-full border px-3 py-1 text-xs transition ${
+                      active
+                        ? "border-[#00ff7e] bg-[#00ff7e]/10 text-[#00ff7e]"
+                        : "border-border/70 bg-background/60 text-muted-foreground hover:text-foreground"
+                    }`}
                   >
-                    {Object.keys(PLAYBACK_INTERVALS).map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                  <Button variant="outline" size="sm" onClick={startReplay}>
-                    <Radio className="mr-2 h-4 w-4" />
-                    Load Frame
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      startReplay();
-                      setPlaying((value) => !value);
-                    }}
-                  >
-                    {playing ? (
-                      <Pause className="mr-2 h-4 w-4" />
-                    ) : (
-                      <Play className="mr-2 h-4 w-4" />
-                    )}
-                    {playing ? "Pause" : "Play"}
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={resumeLive}>
-                    <RotateCcw className="mr-2 h-4 w-4" />
-                    Resume Live
-                  </Button>
-                  <Button variant="danger" size="sm" onClick={handleClear}>
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Clear
-                  </Button>
-                </div>
+                    {formatSessionLabel(session.sessionDate)} - {session.frameCount}f
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">
+                  {symbol} {expiry}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {selectedFrame && selectedSession
+                    ? `Selected ${selectedIndex + 1} of ${frames.length} - ${formatDistanceToNowStrict(
+                        new Date(selectedFrame.updatedAt),
+                        { addSuffix: true }
+                      )} - Session ${selectedSession.sessionDate}`
+                    : "No frame selected"}
+                </p>
+                {replayActive && replayFrameLabel ? (
+                  <p className="mt-1 text-xs text-bullish">
+                    Replaying {replayFrameLabel}
+                  </p>
+                ) : null}
               </div>
 
-              <input
-                type="range"
-                min={0}
-                max={Math.max(frames.length - 1, 0)}
-                value={selectedIndex}
-                onChange={(event) => setSelectedIndex(Number(event.target.value))}
-                className="w-full accent-[#00ff7e]"
-              />
-
-              {selectedFrame ? (
-                <div className="grid gap-2 text-xs text-muted-foreground md:grid-cols-4">
-                  <p>Spot: {selectedFrame.spot.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</p>
-                  <p>Call OI: {selectedFrame.aggregates.totalCallOi.toLocaleString("en-IN")}</p>
-                  <p>Put OI: {selectedFrame.aggregates.totalPutOi.toLocaleString("en-IN")}</p>
-                  <p>Source: {selectedFrame.sourceMode.toUpperCase()}</p>
-                </div>
-              ) : null}
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={speed}
+                  onChange={(event) =>
+                    setSpeed(event.target.value as keyof typeof PLAYBACK_INTERVALS)
+                  }
+                  className="h-9 rounded-md border border-border bg-background px-3 text-sm"
+                >
+                  {Object.keys(PLAYBACK_INTERVALS).map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+                <Button variant="outline" size="sm" onClick={startReplay}>
+                  <Radio className="mr-2 h-4 w-4" />
+                  Load Frame
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    startReplay();
+                    setPlaying((value) => !value);
+                  }}
+                >
+                  {playing ? (
+                    <Pause className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Play className="mr-2 h-4 w-4" />
+                  )}
+                  {playing ? "Pause" : "Play"}
+                </Button>
+                <Button variant="outline" size="sm" onClick={resumeLive}>
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Resume Live
+                </Button>
+                <Button variant="danger" size="sm" onClick={handleClear}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Clear Session
+                </Button>
+              </div>
             </div>
-          </>
+
+            <input
+              type="range"
+              min={0}
+              max={Math.max(frames.length - 1, 0)}
+              value={selectedIndex}
+              onChange={(event) => setSelectedIndex(Number(event.target.value))}
+              className="w-full accent-[#00ff7e]"
+            />
+
+            {selectedFrame ? (
+              <div className="grid gap-2 text-xs text-muted-foreground md:grid-cols-4">
+                <p>
+                  Spot:{" "}
+                  {selectedFrame.spot.toLocaleString("en-IN", {
+                    maximumFractionDigits: 2
+                  })}
+                </p>
+                <p>
+                  Call OI:{" "}
+                  {selectedFrame.aggregates.totalCallOi.toLocaleString("en-IN")}
+                </p>
+                <p>
+                  Put OI:{" "}
+                  {selectedFrame.aggregates.totalPutOi.toLocaleString("en-IN")}
+                </p>
+                <p>Source: {selectedFrame.sourceMode.toUpperCase()}</p>
+              </div>
+            ) : null}
+
+            {selectedSession ? (
+              <div className="grid gap-2 text-xs text-muted-foreground md:grid-cols-4">
+                <p>Session frames: {selectedSession.frameCount}</p>
+                <p>
+                  First:{" "}
+                  {selectedSession.firstUpdatedAt
+                    ? format(new Date(selectedSession.firstUpdatedAt), "HH:mm:ss")
+                    : "-"}
+                </p>
+                <p>
+                  Last:{" "}
+                  {selectedSession.lastUpdatedAt
+                    ? format(new Date(selectedSession.lastUpdatedAt), "HH:mm:ss")
+                    : "-"}
+                </p>
+                <p>Degraded frames: {selectedSession.degradedCount}</p>
+              </div>
+            ) : null}
+          </div>
         ) : (
           <div className="rounded-lg border border-dashed border-border/70 bg-background/30 p-6 text-sm text-muted-foreground">
             No local frames cached yet. Keep the dashboard open for a few updates and

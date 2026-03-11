@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 
 import { recordReplayFrame } from "@/lib/replay/db";
+import { deriveReplaySessionDate } from "@/lib/replay/utils";
 import { useMarketStore } from "@/store/market-store";
 
 const MIN_REPLAY_RECORD_INTERVAL_MS = 4_000;
@@ -54,6 +55,7 @@ export function useReplayRecorder() {
     void recordReplayFrame({
       symbol,
       expiry,
+      sessionDate: deriveReplaySessionDate(updatedAt),
       sourceMode: mode,
       degraded,
       message,

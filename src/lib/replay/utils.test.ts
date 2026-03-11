@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { buildReplayTimeline, summarizeReplayFrames } from "@/lib/replay/utils";
+import {
+  buildReplayTimeline,
+  deriveReplaySessionDate,
+  summarizeReplayFrames,
+  summarizeReplaySessions
+} from "@/lib/replay/utils";
 
 const frames = [
   {
     symbol: "NIFTY" as const,
     expiry: "2026-03-26",
+    sessionDate: "2026-03-11",
     sourceMode: "live" as const,
     degraded: false,
     updatedAt: "2026-03-11T09:15:00.000Z",
@@ -28,6 +34,7 @@ const frames = [
   {
     symbol: "NIFTY" as const,
     expiry: "2026-03-26",
+    sessionDate: "2026-03-11",
     sourceMode: "live" as const,
     degraded: false,
     updatedAt: "2026-03-11T09:15:05.000Z",
@@ -69,6 +76,32 @@ describe("replay utils", () => {
       firstUpdatedAt: "2026-03-11T09:15:00.000Z",
       lastUpdatedAt: "2026-03-11T09:15:05.000Z",
       latestSpot: 22480
+    });
+  });
+
+  it("derives and groups replay sessions by day", () => {
+    const sessions = summarizeReplaySessions([
+      ...frames,
+      {
+        ...frames[1],
+        sessionDate: "2026-03-10",
+        updatedAt: "2026-03-10T09:15:05.000Z",
+        recordedAt: "2026-03-10T09:15:06.000Z",
+        degraded: true
+      }
+    ]);
+
+    expect(deriveReplaySessionDate("2026-03-11T12:00:00.000Z")).toBe("2026-03-11");
+    expect(sessions).toHaveLength(2);
+    expect(sessions[0]).toMatchObject({
+      sessionDate: "2026-03-11",
+      frameCount: 2,
+      degradedCount: 0
+    });
+    expect(sessions[1]).toMatchObject({
+      sessionDate: "2026-03-10",
+      frameCount: 1,
+      degradedCount: 1
     });
   });
 });
