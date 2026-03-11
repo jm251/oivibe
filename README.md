@@ -20,7 +20,7 @@ Production-ready Next.js 15 dashboard for live NSE F&O intelligence.
 - Secure Upstox OAuth/access-token session storage via encrypted HttpOnly cookie
 - Live mode stays live on transient Upstox failures and falls back to cached snapshots instead of silently switching to mock
 - Expired Upstox tokens trigger automatic OAuth re-auth instead of requiring manual env edits
-- Browser-side Dexie replay cache for local snapshot recording and session playback
+- Browser-side Dexie replay cache for local snapshot recording, session playback, and JSON export/import
 
 ## Environment
 
@@ -43,6 +43,7 @@ If you want browser login instead of pasting a token, `UPSTOX_REDIRECT_URI` must
 - No paid market-data or order APIs are required for the dashboard runtime.
 - Upstox access tokens are daily tokens. OI VIBE stores session tokens with the next `3:30 AM IST` expiry window, keeps the last successful live snapshot, and auto-starts OAuth re-auth when Upstox returns an expired-token response.
 - Local replay recording uses `Dexie` + IndexedDB in the browser. No extra backend, paid API, or storage key is required.
+- Replay cache keeps bounded daily sessions locally and supports JSON session export/import across browsers.
 
 Official Upstox docs:
 
