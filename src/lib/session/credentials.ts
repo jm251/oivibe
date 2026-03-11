@@ -8,6 +8,8 @@ const ALGORITHM = "aes-256-gcm";
 
 export interface SessionCredentials {
   accessToken: string;
+  issuedAt?: string;
+  expiresAt?: string;
 }
 
 function resolveSecret() {

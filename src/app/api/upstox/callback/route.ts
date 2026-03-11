@@ -6,6 +6,7 @@ import {
   exchangeUpstoxAuthorizationCode,
   validateUpstoxAccessToken
 } from "@/lib/upstox/rest";
+import { computeUpstoxAccessTokenExpiry } from "@/lib/upstox/token-lifecycle";
 
 export const runtime = "nodejs";
 
@@ -52,7 +53,12 @@ export async function GET(req: Request) {
   try {
     const accessToken = await exchangeUpstoxAuthorizationCode(code);
     await validateUpstoxAccessToken({ accessToken });
-    await setSessionCredentials({ accessToken });
+    const issuedAt = new Date().toISOString();
+    await setSessionCredentials({
+      accessToken,
+      issuedAt,
+      expiresAt: computeUpstoxAccessTokenExpiry(new Date(issuedAt))
+    });
 
     return redirectWithParams(req, returnTo, {
       oauth: "connected"

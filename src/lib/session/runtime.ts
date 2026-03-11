@@ -1,6 +1,7 @@
 import { env } from "@/lib/env";
 import { getSessionCredentials } from "@/lib/session/credentials";
 import { UpstoxCredentials } from "@/lib/upstox/types";
+import { isExpiredIsoDate } from "@/lib/upstox/token-lifecycle";
 
 interface ResolvedCredentials {
   source: "session" | "env" | "none";
@@ -13,7 +14,7 @@ function sanitize(input: string | undefined) {
 
 export async function resolveRuntimeCredentials(): Promise<ResolvedCredentials> {
   const fromSession = await getSessionCredentials();
-  if (fromSession?.accessToken) {
+  if (fromSession?.accessToken && !isExpiredIsoDate(fromSession.expiresAt)) {
     return {
       source: "session",
       credentials: {

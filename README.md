@@ -19,6 +19,7 @@ Production-ready Next.js 15 dashboard for live NSE F&O intelligence.
 - Streaming SSE pipeline (`snapshot`, `tick`, `heartbeat`, `error`)
 - Secure Upstox OAuth/access-token session storage via encrypted HttpOnly cookie
 - Live mode stays live on transient Upstox failures and falls back to cached snapshots instead of silently switching to mock
+- Expired Upstox tokens trigger automatic OAuth re-auth instead of requiring manual env edits
 
 ## Environment
 
@@ -39,7 +40,7 @@ If you want browser login instead of pasting a token, `UPSTOX_REDIRECT_URI` must
 
 - OI VIBE v1 uses only the free Upstox market-data APIs for authentication, option chain snapshots, and market-data WebSocket streaming.
 - No paid market-data or order APIs are required for the dashboard runtime.
-- Upstox access tokens are daily tokens. When a token expires, OI VIBE keeps the last successful live snapshot and marks the connection as degraded until you reconnect.
+- Upstox access tokens are daily tokens. OI VIBE stores session tokens with the next `3:30 AM IST` expiry window, keeps the last successful live snapshot, and auto-starts OAuth re-auth when Upstox returns an expired-token response.
 
 Official Upstox docs:
 

@@ -11,6 +11,7 @@ vi.mock("@/lib/session/credentials", () => ({
 import { POST } from "@/app/api/session/connect/route";
 import { setSessionCredentials } from "@/lib/session/credentials";
 import { validateUpstoxAccessToken } from "@/lib/upstox/rest";
+import { isExpiredIsoDate } from "@/lib/upstox/token-lifecycle";
 
 describe("POST /api/session/connect", () => {
   it("stores session on valid Upstox token", async () => {
@@ -27,11 +28,15 @@ describe("POST /api/session/connect", () => {
 
     expect(response.status).toBe(200);
     expect(setSessionCredentials).toHaveBeenCalledWith({
-      accessToken: "x".repeat(40)
+      accessToken: "x".repeat(40),
+      expiresAt: expect.any(String),
+      issuedAt: expect.any(String)
     });
 
-    const payload = await response.json();
-    expect(payload.mode).toBe("live");
+    const payload = vi.mocked(setSessionCredentials).mock.calls[0]?.[0];
+    expect(isExpiredIsoDate(payload?.expiresAt, new Date(payload?.issuedAt ?? ""))).toBe(false);
+    const body = await response.json();
+    expect(body.mode).toBe("live");
   });
 
   it("falls back to mock on invalid token", async () => {

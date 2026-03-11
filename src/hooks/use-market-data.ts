@@ -7,12 +7,57 @@ import { SupportedSymbol } from "@/lib/types";
 import { useMarketStore } from "@/store/market-store";
 import { usePlanStore } from "@/store/plan-store";
 
+const AUTO_REAUTH_KEY = "oi_vibe_auto_reauth_attempted";
+
+class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code?: string
+  ) {
+    super(message);
+  }
+}
+
 async function fetcher<T>(url: string): Promise<T> {
   const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
+    let payload:
+      | {
+          code?: string;
+          message?: string;
+        }
+      | undefined;
+
+    try {
+      payload = (await response.json()) as {
+        code?: string;
+        message?: string;
+      };
+    } catch {
+      // no-op
+    }
+
+    throw new ApiRequestError(
+      payload?.message ?? `HTTP ${response.status}`,
+      response.status,
+      payload?.code
+    );
   }
   return response.json() as Promise<T>;
+}
+
+function clearAutoReauthAttempt() {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(AUTO_REAUTH_KEY);
+}
+
+function triggerAutoReauth() {
+  if (typeof window === "undefined") return;
+  if (window.sessionStorage.getItem(AUTO_REAUTH_KEY) === "1") return;
+
+  window.sessionStorage.setItem(AUTO_REAUTH_KEY, "1");
+  window.location.assign("/api/upstox/login?returnTo=/");
 }
 
 function useTrackApiCall() {
@@ -40,6 +85,10 @@ export function useSessionStatus() {
         degraded: false,
         message: undefined
       });
+
+      if (query.data.connected && query.data.mode === "live") {
+        clearAutoReauthAttempt();
+      }
     }
   }, [query.data, setConnection]);
 
@@ -110,6 +159,10 @@ export function useOptionChain(symbol: SupportedSymbol, expiry: string) {
         degraded: query.data.degraded,
         message: query.data.message
       });
+
+      if (query.data.mode === "live" && !query.data.degraded) {
+        clearAutoReauthAttempt();
+      }
     }
   }, [applySnapshot, query.data, setConnection]);
 
@@ -124,6 +177,13 @@ export function useOptionChain(symbol: SupportedSymbol, expiry: string) {
             ? query.error.message
             : "Upstox live snapshot failed."
       });
+
+      if (
+        query.error instanceof ApiRequestError &&
+        query.error.code === "UPSTOX_TOKEN_EXPIRED"
+      ) {
+        triggerAutoReauth();
+      }
     }
   }, [currentMode, query.error, setConnection]);
 
@@ -203,6 +263,10 @@ export function useMarketStream(symbol: SupportedSymbol, expiry: string) {
               degraded: true,
               message: payload.message
             });
+          }
+
+          if (payload.code === "UPSTOX_TOKEN_EXPIRED") {
+            triggerAutoReauth();
           }
         } catch {
           // EventSource reconnect handles transient disconnects.

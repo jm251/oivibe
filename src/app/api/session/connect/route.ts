@@ -3,6 +3,7 @@ import { z } from "zod";
 import { fail, ok, parseJson } from "@/lib/http";
 import { setSessionCredentials } from "@/lib/session/credentials";
 import { validateUpstoxAccessToken } from "@/lib/upstox/rest";
+import { computeUpstoxAccessTokenExpiry } from "@/lib/upstox/token-lifecycle";
 
 const payloadSchema = z.object({
   accessToken: z.string().min(20)
@@ -17,7 +18,12 @@ export async function POST(req: Request) {
 
     try {
       await validateUpstoxAccessToken({ accessToken: payload.accessToken });
-      await setSessionCredentials({ accessToken: payload.accessToken });
+      const issuedAt = new Date().toISOString();
+      await setSessionCredentials({
+        accessToken: payload.accessToken,
+        issuedAt,
+        expiresAt: computeUpstoxAccessTokenExpiry(new Date(issuedAt))
+      });
 
       return ok({
         connected: true,

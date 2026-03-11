@@ -20,6 +20,7 @@ import {
   exchangeUpstoxAuthorizationCode,
   validateUpstoxAccessToken
 } from "@/lib/upstox/rest";
+import { isExpiredIsoDate } from "@/lib/upstox/token-lifecycle";
 
 describe("GET /api/upstox/callback", () => {
   it("stores session and redirects back on successful oauth exchange", async () => {
@@ -45,8 +46,12 @@ describe("GET /api/upstox/callback", () => {
       accessToken: "token-1234567890"
     });
     expect(setSessionCredentials).toHaveBeenCalledWith({
-      accessToken: "token-1234567890"
+      accessToken: "token-1234567890",
+      issuedAt: expect.any(String),
+      expiresAt: expect.any(String)
     });
+    const payload = vi.mocked(setSessionCredentials).mock.calls[0]?.[0];
+    expect(isExpiredIsoDate(payload?.expiresAt, new Date(payload?.issuedAt ?? ""))).toBe(false);
   });
 
   it("rejects state mismatches", async () => {
