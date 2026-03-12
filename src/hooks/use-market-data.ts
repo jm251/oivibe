@@ -1,13 +1,11 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 
 import { SupportedSymbol } from "@/lib/types";
 import { useMarketStore } from "@/store/market-store";
 import { usePlanStore } from "@/store/plan-store";
-
-const AUTO_REAUTH_KEY = "oi_vibe_auto_reauth_attempted";
 
 class ApiRequestError extends Error {
   constructor(
@@ -47,25 +45,13 @@ async function fetcher<T>(url: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function clearAutoReauthAttempt() {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.removeItem(AUTO_REAUTH_KEY);
-}
-
-function triggerAutoReauth() {
-  if (typeof window === "undefined") return;
-  if (window.sessionStorage.getItem(AUTO_REAUTH_KEY) === "1") return;
-
-  window.sessionStorage.setItem(AUTO_REAUTH_KEY, "1");
-  window.location.assign("/api/upstox/login?returnTo=/");
-}
-
 function useTrackApiCall() {
   const incrementApiCalls = usePlanStore((s) => s.incrementApiCalls);
   return incrementApiCalls;
 }
 
 export function useSessionStatus() {
+  const queryClient = useQueryClient();
   const setConnection = useMarketStore((state) => state.setConnection);
   const track = useTrackApiCall();
 
@@ -73,8 +59,19 @@ export function useSessionStatus() {
     queryKey: ["session-status"],
     queryFn: async () => {
       track();
-      return fetcher<{ connected: boolean; mode: "live" | "mock" }>("/api/session/status");
-    }
+      return fetcher<{
+        connected: boolean;
+        mode: "live" | "mock";
+        source: "session" | "runtime" | "env" | "none";
+        expiresAt?: string;
+        oauthAvailable: boolean;
+        tokenRequestAvailable: boolean;
+        runtimeStoreAvailable: boolean;
+        requiresApproval: boolean;
+      }>("/api/session/status");
+    },
+    refetchInterval: (query) =>
+      query.state.data?.requiresApproval ? 15_000 : false
   });
 
   useEffect(() => {
@@ -83,14 +80,22 @@ export function useSessionStatus() {
         connected: query.data.connected,
         mode: query.data.mode,
         degraded: false,
-        message: undefined
+        message: query.data.requiresApproval
+          ? "Upstox approval is required for a fresh live token."
+          : undefined,
+        approvalRequired: query.data.requiresApproval,
+        tokenRequestAvailable: query.data.tokenRequestAvailable,
+        oauthAvailable: query.data.oauthAvailable,
+        source: query.data.source,
+        expiresAt: query.data.expiresAt
       });
 
       if (query.data.connected && query.data.mode === "live") {
-        clearAutoReauthAttempt();
+        void queryClient.invalidateQueries({ queryKey: ["expiries"] });
+        void queryClient.invalidateQueries({ queryKey: ["option-chain"] });
       }
     }
-  }, [query.data, setConnection]);
+  }, [query.data, queryClient, setConnection]);
 
   return query;
 }
@@ -158,33 +163,30 @@ export function useOptionChain(symbol: SupportedSymbol, expiry: string) {
         connected: query.data.mode === "live",
         mode: query.data.mode,
         degraded: query.data.degraded,
-        message: query.data.message
+        message: query.data.message,
+        approvalRequired: false
       });
-
-      if (query.data.mode === "live" && !query.data.degraded) {
-        clearAutoReauthAttempt();
-      }
     }
   }, [applySnapshot, query.data, setConnection]);
 
   useEffect(() => {
     if (query.error && currentMode === "live") {
+      const approvalRequired =
+        query.error instanceof ApiRequestError &&
+        query.error.code === "UPSTOX_TOKEN_EXPIRED";
+
       setConnection({
-        connected: true,
+        connected: false,
         mode: "live",
         degraded: true,
         message:
-          query.error instanceof Error
-            ? query.error.message
-            : "Upstox live snapshot failed."
+          approvalRequired
+            ? "Upstox token expired. Approve a fresh session to resume live data."
+            : query.error instanceof Error
+              ? query.error.message
+              : "Upstox live snapshot failed.",
+        approvalRequired
       });
-
-      if (
-        query.error instanceof ApiRequestError &&
-        query.error.code === "UPSTOX_TOKEN_EXPIRED"
-      ) {
-        triggerAutoReauth();
-      }
     }
   }, [currentMode, query.error, setConnection]);
 
@@ -233,7 +235,8 @@ export function useMarketStream(symbol: SupportedSymbol, expiry: string) {
         connected: payload.mode === "live",
         mode: payload.mode,
         degraded: payload.degraded,
-        message: payload.message
+        message: payload.message,
+        approvalRequired: false
       });
     });
 
@@ -260,15 +263,15 @@ export function useMarketStream(symbol: SupportedSymbol, expiry: string) {
 
           if (currentMode === "live") {
             setConnection({
-              connected: true,
+              connected: payload.code !== "UPSTOX_TOKEN_EXPIRED",
               mode: "live",
               degraded: true,
-              message: payload.message
+              message:
+                payload.code === "UPSTOX_TOKEN_EXPIRED"
+                  ? "Upstox token expired. Approve a fresh session to resume live data."
+                  : payload.message,
+              approvalRequired: payload.code === "UPSTOX_TOKEN_EXPIRED"
             });
-          }
-
-          if (payload.code === "UPSTOX_TOKEN_EXPIRED") {
-            triggerAutoReauth();
           }
         } catch {
           // EventSource reconnect handles transient disconnects.

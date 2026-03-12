@@ -37,6 +37,19 @@ interface ConnectPayload {
   connected: boolean;
   mode: "live" | "mock";
   message?: string;
+  source?: "session" | "runtime" | "env" | "none";
+  expiresAt?: string;
+  approvalRequired?: boolean;
+  tokenRequestAvailable?: boolean;
+  oauthAvailable?: boolean;
+}
+
+interface TokenRequestPayload {
+  requested: boolean;
+  authorizationExpiry?: string;
+  notifierUrl?: string | null;
+  notifierMatchesApp: boolean;
+  expectedNotifierUrl: string;
 }
 
 function exportCsv(rows: ReturnType<typeof useMarketStore.getState>["rows"], symbol: string) {
@@ -64,6 +77,11 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
     connected,
     degraded,
     message,
+    approvalRequired,
+    tokenRequestAvailable,
+    oauthAvailable,
+    source,
+    expiresAt,
     replayActive,
     replayFrameLabel,
     rows,
@@ -93,8 +111,34 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
       return (await response.json()) as ConnectPayload;
     },
     onSuccess: (data) => {
-      setConnection({ connected: data.connected, mode: data.mode });
+      setConnection(data);
       queryClient.invalidateQueries();
+    }
+  });
+
+  const tokenRequestMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/upstox/token-request", {
+        method: "POST"
+      });
+
+      if (!response.ok) {
+        let message = `Token request failed (${response.status})`;
+        try {
+          const payload = (await response.json()) as { message?: string };
+          if (payload.message) {
+            message = payload.message;
+          }
+        } catch {
+          // no-op
+        }
+        throw new Error(message);
+      }
+
+      return (await response.json()) as TokenRequestPayload;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["session-status"] });
     }
   });
 
@@ -107,7 +151,7 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
       return (await response.json()) as ConnectPayload;
     },
     onSuccess: (data) => {
-      setConnection({ connected: data.connected, mode: data.mode });
+      setConnection(data);
       queryClient.invalidateQueries();
     }
   });
@@ -120,6 +164,8 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
   const modeTone =
     replayActive
       ? "text-warning"
+      : approvalRequired
+        ? "text-warning"
       : mode === "mock"
         ? "text-warning"
         : degraded
@@ -128,6 +174,8 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
   const connectionTone =
     replayActive
       ? "text-warning"
+      : approvalRequired
+        ? "text-warning"
       : mode === "mock"
         ? "text-warning"
         : degraded
@@ -136,6 +184,8 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
   const connectionLabel =
     replayActive
       ? "REPLAY ACTIVE"
+      : approvalRequired
+        ? "APPROVAL REQUIRED"
       : mode === "mock"
         ? "SIM MODE"
         : degraded
@@ -168,6 +218,14 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
             </span>
             <span className={connectionTone}>
               {connectionLabel}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 rounded-md bg-background/70 px-3 py-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Source
+            </span>
+            <span className="text-xs uppercase tracking-wide text-foreground">
+              {(source ?? "none").toUpperCase()}
             </span>
           </div>
         </div>
@@ -302,12 +360,65 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
           </div>
         </div>
       </div>
-      {message || replayFrameLabel ? (
-        <p className="mt-3 text-xs text-warning">
-          {replayActive && replayFrameLabel
-            ? `Replaying local cache frame ${replayFrameLabel}.`
-            : message}
-        </p>
+      {message || replayFrameLabel || approvalRequired || tokenRequestMutation.data ? (
+        <div className="mt-3 flex flex-col gap-2 text-xs">
+          <p className="text-warning">
+            {replayActive && replayFrameLabel
+              ? `Replaying local cache frame ${replayFrameLabel}.`
+              : message ?? (approvalRequired
+                  ? "Upstox approval is required to resume live data."
+                  : "")}
+          </p>
+
+          {approvalRequired ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {tokenRequestAvailable ? (
+                <Button
+                  size="sm"
+                  onClick={() => tokenRequestMutation.mutate()}
+                  disabled={tokenRequestMutation.isPending}
+                >
+                  {tokenRequestMutation.isPending
+                    ? "Requesting approval..."
+                    : "Approve Upstox Session"}
+                </Button>
+              ) : oauthAvailable ? (
+                <a
+                  href={oauthLoginHref}
+                  className={buttonVariants({ size: "sm" })}
+                >
+                  Continue with Upstox
+                </a>
+              ) : null}
+
+              {expiresAt ? (
+                <span className="text-muted-foreground">
+                  Last token expiry: {new Date(expiresAt).toLocaleString("en-IN")}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+
+          {tokenRequestMutation.data ? (
+            <p className="text-bullish">
+              Approval request sent.
+              {tokenRequestMutation.data.authorizationExpiry
+                ? ` Approve before ${new Date(
+                    tokenRequestMutation.data.authorizationExpiry
+                  ).toLocaleString("en-IN")}.`
+                : ""}
+              {!tokenRequestMutation.data.notifierMatchesApp
+                ? ` Notifier URL in Upstox app does not match this deployment. Expected: ${tokenRequestMutation.data.expectedNotifierUrl}`
+                : ""}
+            </p>
+          ) : null}
+
+          {tokenRequestMutation.error ? (
+            <p className="text-bearish">
+              {(tokenRequestMutation.error as Error).message}
+            </p>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

@@ -7,9 +7,14 @@ import {
   UpstoxChainSnapshot,
   UpstoxCredentials,
   UpstoxOptionContract,
+  UpstoxTokenRequestResponse,
   UpstoxTokenExchangeResponse
 } from "@/lib/upstox/types";
-import { env, hasUpstoxOauthConfig } from "@/lib/env";
+import {
+  env,
+  hasUpstoxOauthConfig,
+  hasUpstoxTokenRequestConfig
+} from "@/lib/env";
 
 const API_BASE_URL = "https://api.upstox.com";
 const CONTRACT_CACHE_MS = 5 * 60 * 1000;
@@ -108,6 +113,50 @@ export async function exchangeUpstoxAuthorizationCode(code: string) {
   }
 
   return accessToken;
+}
+
+export async function requestUpstoxAccessToken() {
+  if (!hasUpstoxTokenRequestConfig) {
+    throw new Error("Upstox token request is not configured");
+  }
+
+  const clientId = sanitize(env.UPSTOX_API_KEY);
+  const clientSecret = sanitize(env.UPSTOX_API_SECRET);
+
+  const response = await fetch(
+    `${API_BASE_URL}/v3/login/auth/token/request/${encodeURIComponent(clientId)}`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Api-Version": "3.0",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        client_secret: clientSecret
+      }),
+      cache: "no-store"
+    }
+  );
+
+  const text = await response.text();
+  let payload: UpstoxEnvelope<UpstoxTokenRequestResponse>;
+
+  try {
+    payload = JSON.parse(text) as UpstoxEnvelope<UpstoxTokenRequestResponse>;
+  } catch {
+    throw new Error("Upstox token request returned non-JSON payload");
+  }
+
+  if (!response.ok || payload.status !== "success") {
+    const message =
+      payload.errors?.[0]?.message ??
+      payload.errors?.[0]?.errorCode ??
+      "Upstox token request failed";
+    throw new Error(message);
+  }
+
+  return payload.data as UpstoxTokenRequestResponse;
 }
 
 async function fetchOptionContracts(

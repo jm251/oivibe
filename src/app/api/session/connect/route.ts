@@ -2,8 +2,10 @@ import { z } from "zod";
 
 import { fail, ok, parseJson } from "@/lib/http";
 import { setSessionCredentials } from "@/lib/session/credentials";
+import { writeRuntimeTokenRecord } from "@/lib/session/runtime-token-store";
 import { validateUpstoxAccessToken } from "@/lib/upstox/rest";
 import { computeUpstoxAccessTokenExpiry } from "@/lib/upstox/token-lifecycle";
+import { hasRuntimeTokenStoreConfig } from "@/lib/env";
 
 const payloadSchema = z.object({
   accessToken: z.string().min(20)
@@ -19,11 +21,19 @@ export async function POST(req: Request) {
     try {
       await validateUpstoxAccessToken({ accessToken: payload.accessToken });
       const issuedAt = new Date().toISOString();
+      const expiresAt = computeUpstoxAccessTokenExpiry(new Date(issuedAt));
       await setSessionCredentials({
         accessToken: payload.accessToken,
         issuedAt,
-        expiresAt: computeUpstoxAccessTokenExpiry(new Date(issuedAt))
+        expiresAt
       });
+      if (hasRuntimeTokenStoreConfig) {
+        await writeRuntimeTokenRecord({
+          accessToken: payload.accessToken,
+          issuedAt,
+          expiresAt
+        });
+      }
 
       return ok({
         connected: true,

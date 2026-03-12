@@ -17,6 +17,11 @@ interface MarketState {
   connected: boolean;
   degraded: boolean;
   message?: string;
+  approvalRequired: boolean;
+  tokenRequestAvailable: boolean;
+  oauthAvailable: boolean;
+  source?: "session" | "runtime" | "env" | "none";
+  expiresAt?: string;
   rows: OptionChainRow[];
   aggregates: ChainAggregates;
   spot: number;
@@ -32,6 +37,11 @@ interface MarketState {
     mode: "live" | "mock";
     degraded?: boolean;
     message?: string;
+    approvalRequired?: boolean;
+    tokenRequestAvailable?: boolean;
+    oauthAvailable?: boolean;
+    source?: "session" | "runtime" | "env" | "none";
+    expiresAt?: string;
   }) => void;
   applySnapshot: (snapshot: {
     mode: "live" | "mock";
@@ -97,6 +107,11 @@ export const useMarketStore = create<MarketState>((set) => ({
   connected: false,
   degraded: false,
   message: undefined,
+  approvalRequired: false,
+  tokenRequestAvailable: false,
+  oauthAvailable: false,
+  source: "none",
+  expiresAt: undefined,
   rows: [],
   aggregates: emptyAggregates,
   spot: 0,
@@ -112,7 +127,12 @@ export const useMarketStore = create<MarketState>((set) => ({
       connected: connection.connected,
       mode: connection.mode,
       degraded: connection.degraded ?? false,
-      message: connection.message
+      message: connection.message,
+      approvalRequired: connection.approvalRequired ?? false,
+      tokenRequestAvailable: connection.tokenRequestAvailable ?? false,
+      oauthAvailable: connection.oauthAvailable ?? false,
+      source: connection.source,
+      expiresAt: connection.expiresAt
     }),
   applySnapshot: (snapshot) =>
     set((state) => ({
@@ -120,6 +140,7 @@ export const useMarketStore = create<MarketState>((set) => ({
       connected: snapshot.mode === "live",
       degraded: snapshot.degraded ?? false,
       message: snapshot.message,
+      approvalRequired: false,
       expiry: snapshot.expiry,
       rows: snapshot.rows,
       aggregates: snapshot.aggregates,

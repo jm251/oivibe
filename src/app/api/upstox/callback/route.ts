@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
+import { hasRuntimeTokenStoreConfig } from "@/lib/env";
 import { setSessionCredentials } from "@/lib/session/credentials";
+import { writeRuntimeTokenRecord } from "@/lib/session/runtime-token-store";
 import { consumeUpstoxOauthState } from "@/lib/upstox/oauth";
 import {
   exchangeUpstoxAuthorizationCode,
@@ -54,11 +56,19 @@ export async function GET(req: Request) {
     const accessToken = await exchangeUpstoxAuthorizationCode(code);
     await validateUpstoxAccessToken({ accessToken });
     const issuedAt = new Date().toISOString();
+    const expiresAt = computeUpstoxAccessTokenExpiry(new Date(issuedAt));
     await setSessionCredentials({
       accessToken,
       issuedAt,
-      expiresAt: computeUpstoxAccessTokenExpiry(new Date(issuedAt))
+      expiresAt
     });
+    if (hasRuntimeTokenStoreConfig) {
+      await writeRuntimeTokenRecord({
+        accessToken,
+        issuedAt,
+        expiresAt
+      });
+    }
 
     return redirectWithParams(req, returnTo, {
       oauth: "connected"

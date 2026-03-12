@@ -1,7 +1,8 @@
 import { ok } from "@/lib/http";
 import { clearSessionCredentials } from "@/lib/session/credentials";
+import { resolveRuntimeStatus } from "@/lib/session/runtime";
 
 export async function POST() {
   await clearSessionCredentials();
-  return ok({ connected: false, mode: "mock" as const });
+  return ok(await resolveRuntimeStatus());
 }

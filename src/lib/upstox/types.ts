@@ -9,6 +9,13 @@ export interface UpstoxTokenExchangeResponse {
   user_id?: string;
 }
 
+export interface UpstoxTokenRequestResponse {
+  client_id?: string;
+  notifier_url?: string;
+  authorization_expiry?: string | number;
+  message?: string;
+}
+
 export interface UpstoxOptionContract {
   expiry: string;
   instrument_key: string;
