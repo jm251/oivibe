@@ -2,6 +2,13 @@ export interface UpstoxCredentials {
   accessToken: string;
 }
 
+export interface UpstoxUserProfile {
+  user_id?: string;
+  email?: string;
+  user_name?: string;
+  broker?: string;
+}
+
 export interface UpstoxTokenExchangeResponse {
   access_token?: string;
   token_type?: string;

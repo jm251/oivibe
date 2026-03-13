@@ -17,9 +17,10 @@ Production-ready Next.js 15 dashboard for live NSE F&O intelligence.
 - CE vs PE flow and PCR metrics
 - Strategy Lab with templates/custom legs, payoff and Greeks
 - Streaming SSE pipeline (`snapshot`, `tick`, `heartbeat`, `error`)
-- Secure Upstox OAuth/access-token session storage via encrypted HttpOnly cookie
+- Encrypted HttpOnly operator and session cookies with runtime token storage support
 - Live mode stays live on transient Upstox failures and falls back to cached snapshots instead of silently switching to mock
-- Expired Upstox tokens trigger automatic OAuth re-auth instead of requiring manual env edits
+- Operator-only Upstox control plane: unlock, reconnect, disconnect, token request, and OAuth callback are gated behind a shared admin secret
+- Runtime tokens are bound to one allowed Upstox user and notifier secrets are never echoed back in API responses
 - Browser-side Dexie replay cache for local snapshot recording, session playback, JSON export/import, and DuckDB-Wasm session analytics
 
 ## Environment
@@ -28,10 +29,12 @@ Copy `.env.example` to `.env` and set values:
 
 ```bash
 SESSION_SECRET=replace-with-32-char-secret
+OI_VIBE_ADMIN_SECRET=replace-with-32-char-operator-secret
 UPSTOX_API_KEY=
 UPSTOX_API_SECRET=
 UPSTOX_REDIRECT_URI=https://your-domain/api/upstox/callback
 UPSTOX_ACCESS_TOKEN=
+UPSTOX_ALLOWED_USER_ID=
 UPSTOX_NOTIFIER_SECRET=replace-with-long-random-secret
 UPSTOX_RUNTIME_EDGE_CONFIG_ID=
 UPSTOX_RUNTIME_EDGE_CONFIG_TOKEN=
@@ -39,6 +42,7 @@ UPSTOX_RUNTIME_VERCEL_API_TOKEN=
 UPSTOX_RUNTIME_VERCEL_TEAM_ID=
 ```
 
+Production requires `SESSION_SECRET`, `OI_VIBE_ADMIN_SECRET`, `UPSTOX_ALLOWED_USER_ID`, and `UPSTOX_NOTIFIER_SECRET`.
 If `UPSTOX_ACCESS_TOKEN` is invalid/missing, OI VIBE runs in realistic live simulator mode.
 If you want browser login instead of pasting a token, `UPSTOX_REDIRECT_URI` must exactly match the callback URL registered in your Upstox app.
 If you want daily runtime renewal without editing env vars, configure the Upstox notifier webhook to:
@@ -48,13 +52,15 @@ https://your-domain/api/upstox/notifier/<UPSTOX_NOTIFIER_SECRET>
 ```
 
 Then use the runtime token request flow, which stores the latest approved token in Vercel Edge Config instead of a deployment env var.
+Set `UPSTOX_ALLOWED_USER_ID` to the only Upstox account allowed to power live mode in this deployment.
 
 ## Upstox Notes
 
 - OI VIBE v1 uses only the free Upstox market-data APIs for authentication, option chain snapshots, and market-data WebSocket streaming.
 - No paid market-data or order APIs are required for the dashboard runtime.
-- Upstox access tokens are daily tokens. OI VIBE stores session tokens with the next `3:30 AM IST` expiry window, keeps the last successful live snapshot, and auto-starts OAuth re-auth when Upstox returns an expired-token response.
+- Upstox access tokens are daily tokens. OI VIBE stores operator-approved tokens with the next `3:30 AM IST` expiry window, keeps the last successful live snapshot, and requests a fresh session instead of silently falling back to mock.
 - OI VIBE also supports a Vercel runtime-token flow for Upstox: request approval, receive the token on a notifier webhook, and store it in Edge Config so production does not need daily env edits or redeploys.
+- Public visitors can view the dashboard, but only an unlocked operator session can mutate runtime credentials or trigger Upstox auth flows.
 - Local replay recording uses `Dexie` + IndexedDB in the browser. No extra backend, paid API, or storage key is required.
 - Replay cache keeps bounded daily sessions locally, supports JSON session export/import across browsers, and runs SQL analytics directly in the browser with `DuckDB-Wasm`.
 

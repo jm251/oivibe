@@ -6,8 +6,10 @@ import {
   hasRuntimeTokenStoreConfig,
   hasUpstoxTokenRequestConfig
 } from "@/lib/env";
+import { assertRateLimit, RateLimitError } from "@/lib/security/rate-limit";
+import { secureSecretEquals } from "@/lib/security/secret-compare";
 import { writeRuntimeTokenRecord } from "@/lib/session/runtime-token-store";
-import { validateUpstoxAccessToken } from "@/lib/upstox/rest";
+import { validateAllowedUpstoxUser } from "@/lib/upstox/rest";
 
 export const runtime = "nodejs";
 
@@ -45,9 +47,23 @@ export async function POST(
   req: Request,
   context: { params: Promise<{ secret: string }> }
 ) {
+  try {
+    await assertRateLimit(req, "notifier");
+  } catch (error) {
+    if (error instanceof RateLimitError) {
+      return fail(429, {
+        code: "RATE_LIMITED",
+        message: error.message,
+        resetAt: error.resetAt
+      });
+    }
+
+    throw error;
+  }
+
   const { secret } = await context.params;
 
-  if (sanitize(secret) !== sanitize(env.UPSTOX_NOTIFIER_SECRET)) {
+  if (!secureSecretEquals(secret, env.UPSTOX_NOTIFIER_SECRET)) {
     return fail(401, {
       code: "UPSTOX_NOTIFIER_UNAUTHORIZED",
       message: "Notifier secret is invalid."
@@ -72,15 +88,22 @@ export async function POST(
       });
     }
 
-    await validateUpstoxAccessToken({
+    const { userId } = await validateAllowedUpstoxUser({
       accessToken: payload.access_token
     });
+
+    if (payload.user_id && sanitize(payload.user_id).toUpperCase() !== userId) {
+      return fail(403, {
+        code: "UPSTOX_NOTIFIER_USER_MISMATCH",
+        message: "Notifier user_id does not match the validated operator account."
+      });
+    }
 
     await writeRuntimeTokenRecord({
       accessToken: payload.access_token,
       issuedAt: toIsoDate(payload.issued_at),
       expiresAt: toIsoDate(payload.expires_at),
-      userId: payload.user_id,
+      userId,
       tokenType: payload.token_type
     });
 

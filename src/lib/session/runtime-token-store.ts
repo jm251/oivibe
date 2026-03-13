@@ -1,4 +1,9 @@
-import { env, hasRuntimeTokenStoreConfig } from "@/lib/env";
+import { hasRuntimeTokenStoreConfig } from "@/lib/env";
+import {
+  deleteEdgeConfigItem,
+  readEdgeConfigItem,
+  upsertEdgeConfigItem
+} from "@/lib/security/edge-config-store";
 
 const EDGE_CONFIG_ITEM_KEY = "upstox_runtime_token";
 const CACHE_TTL_MS = 15_000;
@@ -18,10 +23,6 @@ let cachedRecord:
       ts: number;
     }
   | null = null;
-
-function sanitize(value: string | undefined) {
-  return value?.trim().replace(/^['"]|['"]$/g, "") ?? "";
-}
 
 function parseRuntimeTokenRecord(
   payload:
@@ -49,36 +50,6 @@ function parseRuntimeTokenRecord(
   } satisfies RuntimeTokenRecord;
 }
 
-function buildEdgeConfigUrl() {
-  const id = sanitize(env.UPSTOX_RUNTIME_EDGE_CONFIG_ID);
-  return new URL(`https://edge-config.vercel.com/${id}/item/${EDGE_CONFIG_ITEM_KEY}`);
-}
-
-function buildEdgeConfigMutationUrl() {
-  const id = sanitize(env.UPSTOX_RUNTIME_EDGE_CONFIG_ID);
-  const teamId = sanitize(env.UPSTOX_RUNTIME_VERCEL_TEAM_ID);
-  const url = new URL(`https://api.vercel.com/v1/edge-config/${id}/items`);
-
-  if (teamId) {
-    url.searchParams.set("teamId", teamId);
-  }
-
-  return url;
-}
-
-function buildHeaders() {
-  return {
-    Authorization: `Bearer ${sanitize(env.UPSTOX_RUNTIME_EDGE_CONFIG_TOKEN)}`
-  };
-}
-
-function buildMutationHeaders() {
-  return {
-    Authorization: `Bearer ${sanitize(env.UPSTOX_RUNTIME_VERCEL_API_TOKEN)}`,
-    "Content-Type": "application/json"
-  };
-}
-
 export async function readRuntimeTokenRecord(force = false) {
   if (!hasRuntimeTokenStoreConfig) {
     return null;
@@ -92,31 +63,19 @@ export async function readRuntimeTokenRecord(force = false) {
     return cachedRecord.record;
   }
 
-  const response = await fetch(buildEdgeConfigUrl(), {
-    headers: buildHeaders(),
-    cache: "no-store"
-  });
-
-  if (response.status === 404) {
-    cachedRecord = { record: null, ts: Date.now() };
-    return null;
-  }
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(
-      `Runtime token read failed (${response.status}): ${text || "Unknown error"}`
-    );
-  }
-
-  const payload = (await response.json()) as {
+  const payload = await readEdgeConfigItem<{
     updatedAt?: string;
     accessToken?: string;
     issuedAt?: string;
     expiresAt?: string;
     userId?: string;
     tokenType?: string;
-  } | null;
+  }>(EDGE_CONFIG_ITEM_KEY);
+
+  if (!payload) {
+    cachedRecord = { record: null, ts: Date.now() };
+    return null;
+  }
   const record = parseRuntimeTokenRecord(payload);
 
   cachedRecord = {
@@ -139,27 +98,7 @@ export async function writeRuntimeTokenRecord(
     updatedAt: new Date().toISOString()
   };
 
-  const response = await fetch(buildEdgeConfigMutationUrl(), {
-    method: "PATCH",
-    headers: buildMutationHeaders(),
-    body: JSON.stringify({
-      items: [
-        {
-          operation: "upsert",
-          key: EDGE_CONFIG_ITEM_KEY,
-          value: nextRecord
-        }
-      ]
-    }),
-    cache: "no-store"
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(
-      `Runtime token write failed (${response.status}): ${text || "Unknown error"}`
-    );
-  }
+  await upsertEdgeConfigItem(EDGE_CONFIG_ITEM_KEY, nextRecord);
 
   cachedRecord = {
     record: nextRecord,
@@ -174,26 +113,7 @@ export async function clearRuntimeTokenRecord() {
     return;
   }
 
-  const response = await fetch(buildEdgeConfigMutationUrl(), {
-    method: "PATCH",
-    headers: buildMutationHeaders(),
-    body: JSON.stringify({
-      items: [
-        {
-          operation: "delete",
-          key: EDGE_CONFIG_ITEM_KEY
-        }
-      ]
-    }),
-    cache: "no-store"
-  });
-
-  if (!response.ok && response.status !== 404) {
-    const text = await response.text();
-    throw new Error(
-      `Runtime token clear failed (${response.status}): ${text || "Unknown error"}`
-    );
-  }
+  await deleteEdgeConfigItem(EDGE_CONFIG_ITEM_KEY);
 
   cachedRecord = {
     record: null,

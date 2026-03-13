@@ -7,6 +7,7 @@ import {
   UpstoxChainSnapshot,
   UpstoxCredentials,
   UpstoxOptionContract,
+  UpstoxUserProfile,
   UpstoxTokenRequestResponse,
   UpstoxTokenExchangeResponse
 } from "@/lib/upstox/types";
@@ -32,6 +33,10 @@ interface UpstoxEnvelope<T> {
 
 function sanitize(value: string | undefined) {
   return value?.trim().replace(/^['\"]|['\"]$/g, "") ?? "";
+}
+
+function sanitizeUserId(value: string | undefined) {
+  return sanitize(value).toUpperCase();
 }
 
 async function fetchUpstox<T>(
@@ -231,6 +236,30 @@ function buildRows(entries: UpstoxChainEntry[]): OptionChainRow[] {
 export async function validateUpstoxAccessToken(credentials: UpstoxCredentials) {
   await fetchOptionContracts(credentials, "NIFTY");
   return true;
+}
+
+export async function fetchUpstoxUserProfile(credentials: UpstoxCredentials) {
+  return fetchUpstox<UpstoxUserProfile>(credentials, "/v2/user/profile");
+}
+
+export async function validateAllowedUpstoxUser(credentials: UpstoxCredentials) {
+  const profile = await fetchUpstoxUserProfile(credentials);
+  const userId = sanitizeUserId(profile.user_id);
+  const allowedUserId = sanitizeUserId(env.UPSTOX_ALLOWED_USER_ID);
+
+  if (!userId) {
+    throw new Error("Upstox profile did not return a user id");
+  }
+
+  if (allowedUserId && userId !== allowedUserId) {
+    throw new Error("Upstox user is not allowed for this deployment");
+  }
+
+  await validateUpstoxAccessToken(credentials);
+
+  return {
+    userId
+  };
 }
 
 export async function fetchUpstoxExpiries(

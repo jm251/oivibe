@@ -1,9 +1,18 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Activity, Download, PlugZap, RefreshCw, WifiOff } from "lucide-react";
+import {
+  Activity,
+  Download,
+  PlugZap,
+  RefreshCw,
+  ShieldCheck,
+  ShieldOff,
+  WifiOff
+} from "lucide-react";
 import { useState } from "react";
 
+import { PricingModal } from "@/components/dashboard/pricing-modal";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,7 +31,6 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
-import { PricingModal } from "@/components/dashboard/pricing-modal";
 import { UNDERLYINGS } from "@/lib/constants";
 import { SupportedSymbol } from "@/lib/types";
 import { useMarketStore } from "@/store/market-store";
@@ -33,7 +41,7 @@ interface CommandBarProps {
   loadingExpiries: boolean;
 }
 
-interface ConnectPayload {
+interface SessionPayload {
   connected: boolean;
   mode: "live" | "mock";
   message?: string;
@@ -42,14 +50,12 @@ interface ConnectPayload {
   approvalRequired?: boolean;
   tokenRequestAvailable?: boolean;
   oauthAvailable?: boolean;
+  adminUnlocked?: boolean;
 }
 
 interface TokenRequestPayload {
   requested: boolean;
   authorizationExpiry?: string;
-  notifierUrl?: string | null;
-  notifierMatchesApp: boolean;
-  expectedNotifierUrl: string;
 }
 
 function exportCsv(rows: ReturnType<typeof useMarketStore.getState>["rows"], symbol: string) {
@@ -68,6 +74,21 @@ function exportCsv(rows: ReturnType<typeof useMarketStore.getState>["rows"], sym
   URL.revokeObjectURL(url);
 }
 
+async function readApiMessage(response: Response, fallback: string) {
+  let message = fallback;
+
+  try {
+    const payload = (await response.json()) as { message?: string };
+    if (payload.message) {
+      message = payload.message;
+    }
+  } catch {
+    // no-op
+  }
+
+  return message;
+}
+
 export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
   const queryClient = useQueryClient();
   const {
@@ -80,6 +101,7 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
     approvalRequired,
     tokenRequestAvailable,
     oauthAvailable,
+    adminUnlocked,
     source,
     expiresAt,
     replayActive,
@@ -88,12 +110,49 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
     setSymbol,
     setExpiry,
     setConnection
-  } =
-    useMarketStore();
+  } = useMarketStore();
   const { isFeatureLocked, incrementApiCalls } = usePlanStore();
 
   const [accessToken, setAccessToken] = useState("");
+  const [adminSecret, setAdminSecret] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
   const oauthLoginHref = "/api/upstox/login?returnTo=/";
+
+  const unlockMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/admin/unlock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ secret: adminSecret })
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiMessage(response, `Unlock failed (${response.status})`));
+      }
+
+      return (await response.json()) as SessionPayload;
+    },
+    onSuccess: (data) => {
+      setConnection(data);
+      setAdminSecret("");
+      void queryClient.invalidateQueries();
+    }
+  });
+
+  const adminLogoutMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/admin/logout", { method: "POST" });
+      if (!response.ok) {
+        throw new Error(await readApiMessage(response, "Operator logout failed"));
+      }
+      return (await response.json()) as SessionPayload;
+    },
+    onSuccess: (data) => {
+      setConnection(data);
+      setDialogOpen(false);
+      void queryClient.invalidateQueries();
+    }
+  });
 
   const connectMutation = useMutation({
     mutationFn: async () => {
@@ -105,14 +164,14 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
       });
 
       if (!response.ok) {
-        throw new Error(`Connect failed (${response.status})`);
+        throw new Error(await readApiMessage(response, `Connect failed (${response.status})`));
       }
 
-      return (await response.json()) as ConnectPayload;
+      return (await response.json()) as SessionPayload;
     },
     onSuccess: (data) => {
       setConnection(data);
-      queryClient.invalidateQueries();
+      void queryClient.invalidateQueries();
     }
   });
 
@@ -123,31 +182,15 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
       });
 
       if (!response.ok) {
-        let message = `Token request failed (${response.status})`;
-        try {
-          const payload = (await response.json()) as {
-            message?: string;
-            expectedNotifierUrl?: string;
-          };
-          if (payload.message) {
-            message = payload.message;
-          }
-          if (
-            payload.expectedNotifierUrl &&
-            payload.message?.toLowerCase().includes("notifier")
-          ) {
-            message = `${message}. Expected: ${payload.expectedNotifierUrl}`;
-          }
-        } catch {
-          // no-op
-        }
-        throw new Error(message);
+        throw new Error(
+          await readApiMessage(response, `Token request failed (${response.status})`)
+        );
       }
 
       return (await response.json()) as TokenRequestPayload;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["session-status"] });
+      void queryClient.invalidateQueries({ queryKey: ["session-status"] });
     }
   });
 
@@ -155,53 +198,46 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
     mutationFn: async () => {
       const response = await fetch("/api/session/disconnect", { method: "POST" });
       if (!response.ok) {
-        throw new Error("Disconnect failed");
+        throw new Error(await readApiMessage(response, "Disconnect failed"));
       }
-      return (await response.json()) as ConnectPayload;
+      return (await response.json()) as SessionPayload;
     },
     onSuccess: (data) => {
       setConnection(data);
-      queryClient.invalidateQueries();
+      void queryClient.invalidateQueries();
     }
   });
 
   const handleExport = () => {
-    if (isFeatureLocked("export-csv")) return;
+    if (isFeatureLocked("export-csv")) {
+      return;
+    }
+
     exportCsv(rows, symbol);
   };
 
   const modeTone =
-    replayActive
+    replayActive || approvalRequired || mode === "mock" || degraded
       ? "text-warning"
-      : approvalRequired
-        ? "text-warning"
-      : mode === "mock"
-        ? "text-warning"
-        : degraded
-          ? "text-warning"
-          : "text-bullish";
+      : "text-bullish";
   const connectionTone =
-    replayActive
+    replayActive || approvalRequired || mode === "mock" || degraded
       ? "text-warning"
-      : approvalRequired
-        ? "text-warning"
-      : mode === "mock"
-        ? "text-warning"
-        : degraded
-          ? "text-warning"
-          : "text-bullish";
+      : "text-bullish";
   const connectionLabel =
     replayActive
       ? "REPLAY ACTIVE"
       : approvalRequired
         ? "APPROVAL REQUIRED"
-      : mode === "mock"
-        ? "SIM MODE"
-        : degraded
-          ? "LIVE DEGRADED"
-          : connected
-            ? "AUTH OK"
-            : "DISCONNECTED";
+        : mode === "mock"
+          ? "SIM MODE"
+          : degraded
+            ? "LIVE DEGRADED"
+            : connected
+              ? "AUTH OK"
+              : "DISCONNECTED";
+
+  const operatorButtonLabel = adminUnlocked ? "Operator" : "Unlock";
 
   return (
     <div className="rounded-xl border border-border/80 bg-panel/90 p-3 shadow-neon">
@@ -216,17 +252,26 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Mode
             </span>
-            <span className={modeTone}>
-              {mode.toUpperCase()}
-            </span>
+            <span className={modeTone}>{mode.toUpperCase()}</span>
           </div>
           <div className="flex items-center gap-2 rounded-md bg-background/70 px-3 py-2">
             <Activity className="h-4 w-4 text-bullish" />
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Connection
             </span>
-            <span className={connectionTone}>
-              {connectionLabel}
+            <span className={connectionTone}>{connectionLabel}</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-md bg-background/70 px-3 py-2">
+            {adminUnlocked ? (
+              <ShieldCheck className="h-4 w-4 text-bullish" />
+            ) : (
+              <ShieldOff className="h-4 w-4 text-warning" />
+            )}
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Operator
+            </span>
+            <span className={adminUnlocked ? "text-bullish" : "text-warning"}>
+              {adminUnlocked ? "UNLOCKED" : "LOCKED"}
             </span>
           </div>
           <div className="flex items-center gap-2 rounded-md bg-background/70 px-3 py-2">
@@ -296,73 +341,129 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
           </div>
 
           <div className="flex items-center gap-2">
-            <Dialog>
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline">Connect</Button>
+                <Button variant="outline">{operatorButtonLabel}</Button>
               </DialogTrigger>
               <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Connect Upstox</DialogTitle>
-                  <DialogDescription>
-                    Access tokens are stored only in encrypted HttpOnly session cookies.
-                  </DialogDescription>
-                </DialogHeader>
+                {!adminUnlocked ? (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle>Operator Unlock</DialogTitle>
+                      <DialogDescription>
+                        Live token controls are restricted to the operator session.
+                      </DialogDescription>
+                    </DialogHeader>
 
-                <div className="space-y-3">
-                  <div className="rounded-lg border border-border/80 bg-background/60 p-3">
-                    <p className="text-sm font-medium text-foreground">
-                      Preferred login
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Redirect through Upstox OAuth and store the token in an
-                      encrypted session cookie.
-                    </p>
-                    <a
-                      href={oauthLoginHref}
-                      className={buttonVariants({ className: "mt-3" })}
-                    >
-                      Continue with Upstox
-                    </a>
-                  </div>
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="operator-secret">Admin Secret</Label>
+                        <Input
+                          id="operator-secret"
+                          type="password"
+                          value={adminSecret}
+                          onChange={(event) => setAdminSecret(event.target.value)}
+                          placeholder="Enter operator admin secret"
+                        />
+                      </div>
 
-                  <div className="space-y-1">
-                    <Label htmlFor="upstox-token">Access Token</Label>
-                    <Input
-                      id="upstox-token"
-                      value={accessToken}
-                      onChange={(event) => setAccessToken(event.target.value)}
-                      placeholder="Paste Upstox access token"
-                    />
-                  </div>
+                      <Button
+                        onClick={() => unlockMutation.mutate()}
+                        disabled={unlockMutation.isPending || adminSecret.length < 16}
+                      >
+                        {unlockMutation.isPending ? "Unlocking..." : "Unlock Operator"}
+                      </Button>
 
-                  <div className="flex items-center gap-2">
-                    <Button
-                      onClick={() => connectMutation.mutate()}
-                      disabled={connectMutation.isPending || !accessToken}
-                    >
-                      {connectMutation.isPending
-                        ? "Validating..."
-                        : "Validate & Connect"}
-                    </Button>
-                    <Button
-                      variant="danger"
-                      onClick={() => disconnectMutation.mutate()}
-                      disabled={disconnectMutation.isPending}
-                    >
-                      Disconnect
-                    </Button>
-                  </div>
+                      {unlockMutation.error ? (
+                        <p className="text-xs text-bearish">
+                          {(unlockMutation.error as Error).message}
+                        </p>
+                      ) : null}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle>Operator Controls</DialogTitle>
+                      <DialogDescription>
+                        Manual live-token actions are limited to the unlocked operator
+                        session. Runtime tokens may also be stored in the server-side
+                        runtime store when enabled.
+                      </DialogDescription>
+                    </DialogHeader>
 
-                  {connectMutation.data?.message ? (
-                    <p className="text-xs text-warning">{connectMutation.data.message}</p>
-                  ) : null}
+                    <div className="space-y-3">
+                      <div className="rounded-lg border border-border/80 bg-background/60 p-3">
+                        <p className="text-sm font-medium text-foreground">
+                          Preferred login
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Redirect through Upstox OAuth and bind the live token to the
+                          configured operator account.
+                        </p>
+                        <a
+                          href={oauthLoginHref}
+                          className={buttonVariants({ className: "mt-3" })}
+                        >
+                          Continue with Upstox
+                        </a>
+                      </div>
 
-                  {connectMutation.error ? (
-                    <p className="text-xs text-bearish">
-                      {(connectMutation.error as Error).message}
-                    </p>
-                  ) : null}
-                </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="upstox-token">Access Token</Label>
+                        <Input
+                          id="upstox-token"
+                          value={accessToken}
+                          onChange={(event) => setAccessToken(event.target.value)}
+                          placeholder="Paste Upstox access token"
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          onClick={() => connectMutation.mutate()}
+                          disabled={connectMutation.isPending || !accessToken}
+                        >
+                          {connectMutation.isPending
+                            ? "Validating..."
+                            : "Validate & Connect"}
+                        </Button>
+                        <Button
+                          variant="danger"
+                          onClick={() => disconnectMutation.mutate()}
+                          disabled={disconnectMutation.isPending}
+                        >
+                          Disconnect
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => adminLogoutMutation.mutate()}
+                          disabled={adminLogoutMutation.isPending}
+                        >
+                          {adminLogoutMutation.isPending ? "Locking..." : "Lock Operator"}
+                        </Button>
+                      </div>
+
+                      {connectMutation.error ? (
+                        <p className="text-xs text-bearish">
+                          {(connectMutation.error as Error).message}
+                        </p>
+                      ) : null}
+
+                      {disconnectMutation.error ? (
+                        <p className="text-xs text-bearish">
+                          {(disconnectMutation.error as Error).message}
+                        </p>
+                      ) : null}
+
+                      {adminLogoutMutation.error ? (
+                        <p className="text-xs text-bearish">
+                          {(adminLogoutMutation.error as Error).message}
+                        </p>
+                      ) : null}
+                    </div>
+                  </>
+                )}
               </DialogContent>
             </Dialog>
             <PricingModal />
@@ -375,30 +476,36 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
             {replayActive && replayFrameLabel
               ? `Replaying local cache frame ${replayFrameLabel}.`
               : message ?? (approvalRequired
-                  ? "Upstox approval is required to resume live data."
+                  ? "Upstox approval is required for a fresh live token."
                   : "")}
           </p>
 
           {approvalRequired ? (
             <div className="flex flex-wrap items-center gap-2">
-              {tokenRequestAvailable ? (
-                <Button
-                  size="sm"
-                  onClick={() => tokenRequestMutation.mutate()}
-                  disabled={tokenRequestMutation.isPending}
-                >
-                  {tokenRequestMutation.isPending
-                    ? "Requesting approval..."
-                    : "Approve Upstox Session"}
+              {adminUnlocked ? (
+                tokenRequestAvailable ? (
+                  <Button
+                    size="sm"
+                    onClick={() => tokenRequestMutation.mutate()}
+                    disabled={tokenRequestMutation.isPending}
+                  >
+                    {tokenRequestMutation.isPending
+                      ? "Requesting approval..."
+                      : "Approve Upstox Session"}
+                  </Button>
+                ) : oauthAvailable ? (
+                  <a
+                    href={oauthLoginHref}
+                    className={buttonVariants({ size: "sm" })}
+                  >
+                    Continue with Upstox
+                  </a>
+                ) : null
+              ) : (
+                <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
+                  Unlock Operator
                 </Button>
-              ) : oauthAvailable ? (
-                <a
-                  href={oauthLoginHref}
-                  className={buttonVariants({ size: "sm" })}
-                >
-                  Continue with Upstox
-                </a>
-              ) : null}
+              )}
 
               {expiresAt ? (
                 <span className="text-muted-foreground">
@@ -415,9 +522,6 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
                 ? ` Approve before ${new Date(
                     tokenRequestMutation.data.authorizationExpiry
                   ).toLocaleString("en-IN")}.`
-                : ""}
-              {!tokenRequestMutation.data.notifierMatchesApp
-                ? ` Notifier URL in Upstox app does not match this deployment. Expected: ${tokenRequestMutation.data.expectedNotifierUrl}`
                 : ""}
             </p>
           ) : null}

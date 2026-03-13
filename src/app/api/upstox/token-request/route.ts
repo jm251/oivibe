@@ -4,6 +4,8 @@ import {
   hasRuntimeTokenStoreConfig,
   hasUpstoxTokenRequestConfig
 } from "@/lib/env";
+import { requireAdminApiAccess } from "@/lib/security/guards";
+import { assertRateLimit, RateLimitError } from "@/lib/security/rate-limit";
 import { requestUpstoxAccessToken } from "@/lib/upstox/rest";
 
 export const runtime = "nodejs";
@@ -28,38 +30,56 @@ function toIsoDate(value: string | number | undefined) {
 }
 
 export async function POST(req: Request) {
-  const expectedNotifierUrl = new URL(
-    `/api/upstox/notifier/${sanitize(env.UPSTOX_NOTIFIER_SECRET)}`,
-    req.url
-  ).toString();
+  const unauthorized = await requireAdminApiAccess();
+  if (unauthorized) {
+    return unauthorized;
+  }
 
   if (!hasUpstoxTokenRequestConfig || !hasRuntimeTokenStoreConfig) {
     return fail(503, {
       code: "UPSTOX_TOKEN_REQUEST_UNAVAILABLE",
-      message: "Runtime token request flow is not configured.",
-      expectedNotifierUrl
+      message: "Runtime token request flow is not configured."
     });
   }
 
   try {
+    await assertRateLimit(req, "token-request");
     const payload = await requestUpstoxAccessToken();
+    const expectedNotifierUrl = new URL(
+      `/api/upstox/notifier/${sanitize(env.UPSTOX_NOTIFIER_SECRET)}`,
+      req.url
+    ).toString();
+
+    if (!payload.notifier_url) {
+      return fail(502, {
+        code: "UPSTOX_TOKEN_REQUEST_FAILED",
+        message: "Upstox did not return a notifier URL."
+      });
+    }
+
+    if (payload.notifier_url !== expectedNotifierUrl) {
+      return fail(502, {
+        code: "UPSTOX_TOKEN_REQUEST_FAILED",
+        message: "Configured Upstox notifier URL does not match this deployment."
+      });
+    }
 
     return ok({
       requested: true,
-      authorizationExpiry: toIsoDate(payload.authorization_expiry),
-      notifierUrl: payload.notifier_url ?? null,
-      notifierMatchesApp:
-        payload.notifier_url === expectedNotifierUrl,
-      expectedNotifierUrl
+      authorizationExpiry: toIsoDate(payload.authorization_expiry)
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Upstox token request failed";
+    if (error instanceof RateLimitError) {
+      return fail(429, {
+        code: "RATE_LIMITED",
+        message: error.message,
+        resetAt: error.resetAt
+      });
+    }
 
     return fail(502, {
       code: "UPSTOX_TOKEN_REQUEST_FAILED",
-      message,
-      expectedNotifierUrl
+      message: error instanceof Error ? error.message : "Upstox token request failed"
     });
   }
 }

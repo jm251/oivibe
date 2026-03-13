@@ -20,6 +20,7 @@ interface MarketState {
   approvalRequired: boolean;
   tokenRequestAvailable: boolean;
   oauthAvailable: boolean;
+  adminUnlocked: boolean;
   source?: "session" | "runtime" | "env" | "none";
   expiresAt?: string;
   rows: OptionChainRow[];
@@ -40,6 +41,7 @@ interface MarketState {
     approvalRequired?: boolean;
     tokenRequestAvailable?: boolean;
     oauthAvailable?: boolean;
+    adminUnlocked?: boolean;
     source?: "session" | "runtime" | "env" | "none";
     expiresAt?: string;
   }) => void;
@@ -110,6 +112,7 @@ export const useMarketStore = create<MarketState>((set) => ({
   approvalRequired: false,
   tokenRequestAvailable: false,
   oauthAvailable: false,
+  adminUnlocked: false,
   source: "none",
   expiresAt: undefined,
   rows: [],
@@ -123,17 +126,19 @@ export const useMarketStore = create<MarketState>((set) => ({
   setSymbol: (symbol) => set({ symbol }),
   setExpiry: (expiry) => set({ expiry }),
   setConnection: (connection) =>
-    set({
+    set((state) => ({
       connected: connection.connected,
       mode: connection.mode,
       degraded: connection.degraded ?? false,
       message: connection.message,
-      approvalRequired: connection.approvalRequired ?? false,
-      tokenRequestAvailable: connection.tokenRequestAvailable ?? false,
-      oauthAvailable: connection.oauthAvailable ?? false,
-      source: connection.source,
-      expiresAt: connection.expiresAt
-    }),
+      approvalRequired: connection.approvalRequired ?? state.approvalRequired,
+      tokenRequestAvailable:
+        connection.tokenRequestAvailable ?? state.tokenRequestAvailable,
+      oauthAvailable: connection.oauthAvailable ?? state.oauthAvailable,
+      adminUnlocked: connection.adminUnlocked ?? state.adminUnlocked,
+      source: connection.source ?? state.source,
+      expiresAt: connection.expiresAt ?? state.expiresAt
+    })),
   applySnapshot: (snapshot) =>
     set((state) => ({
       mode: snapshot.mode,

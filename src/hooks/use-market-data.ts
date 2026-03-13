@@ -68,6 +68,7 @@ export function useSessionStatus() {
         tokenRequestAvailable: boolean;
         runtimeStoreAvailable: boolean;
         requiresApproval: boolean;
+        adminUnlocked: boolean;
       }>("/api/session/status");
     },
     refetchInterval: (query) =>
@@ -86,6 +87,7 @@ export function useSessionStatus() {
         approvalRequired: query.data.requiresApproval,
         tokenRequestAvailable: query.data.tokenRequestAvailable,
         oauthAvailable: query.data.oauthAvailable,
+        adminUnlocked: query.data.adminUnlocked,
         source: query.data.source,
         expiresAt: query.data.expiresAt
       });
