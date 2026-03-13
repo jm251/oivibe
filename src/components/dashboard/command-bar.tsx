@@ -125,9 +125,18 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
       if (!response.ok) {
         let message = `Token request failed (${response.status})`;
         try {
-          const payload = (await response.json()) as { message?: string };
+          const payload = (await response.json()) as {
+            message?: string;
+            expectedNotifierUrl?: string;
+          };
           if (payload.message) {
             message = payload.message;
+          }
+          if (
+            payload.expectedNotifierUrl &&
+            payload.message?.toLowerCase().includes("notifier")
+          ) {
+            message = `${message}. Expected: ${payload.expectedNotifierUrl}`;
           }
         } catch {
           // no-op

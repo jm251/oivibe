@@ -4,6 +4,7 @@ export interface ApiErrorPayload {
   code: string;
   message: string;
   details?: unknown;
+  [key: string]: unknown;
 }
 
 export function ok<T>(data: T, init?: ResponseInit) {

@@ -28,19 +28,21 @@ function toIsoDate(value: string | number | undefined) {
 }
 
 export async function POST(req: Request) {
+  const expectedNotifierUrl = new URL(
+    `/api/upstox/notifier/${sanitize(env.UPSTOX_NOTIFIER_SECRET)}`,
+    req.url
+  ).toString();
+
   if (!hasUpstoxTokenRequestConfig || !hasRuntimeTokenStoreConfig) {
     return fail(503, {
       code: "UPSTOX_TOKEN_REQUEST_UNAVAILABLE",
-      message: "Runtime token request flow is not configured."
+      message: "Runtime token request flow is not configured.",
+      expectedNotifierUrl
     });
   }
 
   try {
     const payload = await requestUpstoxAccessToken();
-    const expectedNotifierUrl = new URL(
-      `/api/upstox/notifier/${sanitize(env.UPSTOX_NOTIFIER_SECRET)}`,
-      req.url
-    ).toString();
 
     return ok({
       requested: true,
@@ -51,9 +53,13 @@ export async function POST(req: Request) {
       expectedNotifierUrl
     });
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Upstox token request failed";
+
     return fail(502, {
       code: "UPSTOX_TOKEN_REQUEST_FAILED",
-      message: error instanceof Error ? error.message : "Upstox token request failed"
+      message,
+      expectedNotifierUrl
     });
   }
 }
