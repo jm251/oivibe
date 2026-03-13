@@ -9,6 +9,7 @@ const envSchema = z.object({
   UPSTOX_ACCESS_TOKEN: z.string().optional(),
   UPSTOX_NOTIFIER_SECRET: z.string().min(12).optional(),
   UPSTOX_RUNTIME_EDGE_CONFIG_ID: z.string().optional(),
+  UPSTOX_RUNTIME_EDGE_CONFIG_TOKEN: z.string().optional(),
   UPSTOX_RUNTIME_VERCEL_API_TOKEN: z.string().optional(),
   UPSTOX_RUNTIME_VERCEL_TEAM_ID: z.string().optional(),
   NEXT_PUBLIC_APP_NAME: z.string().default("OI VIBE")
@@ -23,6 +24,8 @@ export const env = envSchema.parse({
   UPSTOX_ACCESS_TOKEN: process.env.UPSTOX_ACCESS_TOKEN,
   UPSTOX_NOTIFIER_SECRET: process.env.UPSTOX_NOTIFIER_SECRET,
   UPSTOX_RUNTIME_EDGE_CONFIG_ID: process.env.UPSTOX_RUNTIME_EDGE_CONFIG_ID,
+  UPSTOX_RUNTIME_EDGE_CONFIG_TOKEN:
+    process.env.UPSTOX_RUNTIME_EDGE_CONFIG_TOKEN,
   UPSTOX_RUNTIME_VERCEL_API_TOKEN: process.env.UPSTOX_RUNTIME_VERCEL_API_TOKEN,
   UPSTOX_RUNTIME_VERCEL_TEAM_ID: process.env.UPSTOX_RUNTIME_VERCEL_TEAM_ID,
   NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME
@@ -36,5 +39,7 @@ export const hasUpstoxTokenRequestConfig = Boolean(
   env.UPSTOX_API_KEY && env.UPSTOX_API_SECRET && env.UPSTOX_NOTIFIER_SECRET
 );
 export const hasRuntimeTokenStoreConfig = Boolean(
-  env.UPSTOX_RUNTIME_EDGE_CONFIG_ID && env.UPSTOX_RUNTIME_VERCEL_API_TOKEN
+  env.UPSTOX_RUNTIME_EDGE_CONFIG_ID &&
+    env.UPSTOX_RUNTIME_EDGE_CONFIG_TOKEN &&
+    env.UPSTOX_RUNTIME_VERCEL_API_TOKEN
 );

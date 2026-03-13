@@ -23,18 +23,35 @@ function sanitize(value: string | undefined) {
   return value?.trim().replace(/^['"]|['"]$/g, "") ?? "";
 }
 
-function buildEdgeConfigUrl() {
-  const id = sanitize(env.UPSTOX_RUNTIME_EDGE_CONFIG_ID);
-  const teamId = sanitize(env.UPSTOX_RUNTIME_VERCEL_TEAM_ID);
-  const url = new URL(
-    `https://api.vercel.com/v1/edge-config/${id}/items/${EDGE_CONFIG_ITEM_KEY}`
-  );
-
-  if (teamId) {
-    url.searchParams.set("teamId", teamId);
+function parseRuntimeTokenRecord(
+  payload:
+    | {
+        updatedAt?: string;
+        accessToken?: string;
+        issuedAt?: string;
+        expiresAt?: string;
+        userId?: string;
+        tokenType?: string;
+      }
+    | null
+) {
+  if (!payload?.accessToken) {
+    return null;
   }
 
-  return url;
+  return {
+    accessToken: payload.accessToken,
+    issuedAt: payload.issuedAt,
+    expiresAt: payload.expiresAt,
+    userId: payload.userId,
+    tokenType: payload.tokenType,
+    updatedAt: payload.updatedAt ?? new Date(0).toISOString()
+  } satisfies RuntimeTokenRecord;
+}
+
+function buildEdgeConfigUrl() {
+  const id = sanitize(env.UPSTOX_RUNTIME_EDGE_CONFIG_ID);
+  return new URL(`https://edge-config.vercel.com/${id}/item/${EDGE_CONFIG_ITEM_KEY}`);
 }
 
 function buildEdgeConfigMutationUrl() {
@@ -50,6 +67,12 @@ function buildEdgeConfigMutationUrl() {
 }
 
 function buildHeaders() {
+  return {
+    Authorization: `Bearer ${sanitize(env.UPSTOX_RUNTIME_EDGE_CONFIG_TOKEN)}`
+  };
+}
+
+function buildMutationHeaders() {
   return {
     Authorization: `Bearer ${sanitize(env.UPSTOX_RUNTIME_VERCEL_API_TOKEN)}`,
     "Content-Type": "application/json"
@@ -87,15 +110,14 @@ export async function readRuntimeTokenRecord(force = false) {
   }
 
   const payload = (await response.json()) as {
-    value?: RuntimeTokenRecord | null;
-    item?: {
-      value?: RuntimeTokenRecord | null;
-    };
-  };
-  const record =
-    payload.value ??
-    payload.item?.value ??
-    null;
+    updatedAt?: string;
+    accessToken?: string;
+    issuedAt?: string;
+    expiresAt?: string;
+    userId?: string;
+    tokenType?: string;
+  } | null;
+  const record = parseRuntimeTokenRecord(payload);
 
   cachedRecord = {
     record,
@@ -119,7 +141,7 @@ export async function writeRuntimeTokenRecord(
 
   const response = await fetch(buildEdgeConfigMutationUrl(), {
     method: "PATCH",
-    headers: buildHeaders(),
+    headers: buildMutationHeaders(),
     body: JSON.stringify({
       items: [
         {
@@ -154,7 +176,7 @@ export async function clearRuntimeTokenRecord() {
 
   const response = await fetch(buildEdgeConfigMutationUrl(), {
     method: "PATCH",
-    headers: buildHeaders(),
+    headers: buildMutationHeaders(),
     body: JSON.stringify({
       items: [
         {
