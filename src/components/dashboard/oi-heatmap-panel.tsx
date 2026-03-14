@@ -18,8 +18,8 @@ export function OiHeatmapPanel({ rows }: { rows: OptionChainRow[] }) {
       <CardContent>
         <div className="grid grid-cols-[80px_1fr_1fr] gap-2 text-xs text-muted-foreground">
           <span>Strike</span>
-          <span>Call ?OI</span>
-          <span>Put ?OI</span>
+          <span>Call Delta OI</span>
+          <span>Put Delta OI</span>
         </div>
         <div className="mt-3 space-y-1">
           {intensities.map((item) => {

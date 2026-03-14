@@ -35,6 +35,7 @@ import { UNDERLYINGS } from "@/lib/constants";
 import { SupportedSymbol } from "@/lib/types";
 import { useMarketStore } from "@/store/market-store";
 import { usePlanStore } from "@/store/plan-store";
+import { useWorkspaceStore } from "@/store/workspace-store";
 
 interface CommandBarProps {
   expiries: string[];
@@ -112,6 +113,8 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
     setConnection
   } = useMarketStore();
   const { isFeatureLocked, incrementApiCalls } = usePlanStore();
+  const workspaceMode = useWorkspaceStore((state) => state.workspaceMode);
+  const setWorkspaceMode = useWorkspaceStore((state) => state.setWorkspaceMode);
 
   const [accessToken, setAccessToken] = useState("");
   const [adminSecret, setAdminSecret] = useState("");
@@ -282,6 +285,14 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
               {(source ?? "none").toUpperCase()}
             </span>
           </div>
+          <div className="flex items-center gap-2 rounded-md bg-background/70 px-3 py-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Workspace
+            </span>
+            <span className="text-xs uppercase tracking-wide text-foreground">
+              {workspaceMode.toUpperCase()}
+            </span>
+          </div>
         </div>
 
         <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-4 lg:max-w-3xl">
@@ -341,6 +352,22 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
           </div>
 
           <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 rounded-md border border-border/80 bg-background/70 p-1">
+              <Button
+                size="sm"
+                variant={workspaceMode === "terminal" ? "default" : "ghost"}
+                onClick={() => setWorkspaceMode("terminal")}
+              >
+                Terminal
+              </Button>
+              <Button
+                size="sm"
+                variant={workspaceMode === "research" ? "default" : "ghost"}
+                onClick={() => setWorkspaceMode("research")}
+              >
+                Research
+              </Button>
+            </div>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline">{operatorButtonLabel}</Button>
