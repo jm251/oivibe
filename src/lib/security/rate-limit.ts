@@ -77,6 +77,10 @@ function hashKey(value: string) {
   return createHash("sha256").update(value).digest("hex").slice(0, 16);
 }
 
+export function buildRateLimitStorageKey(action: RateLimitAction, clientIp: string) {
+  return `rate_limit_${action}_${hashKey(clientIp)}`;
+}
+
 export async function assertRateLimit(req: Request, action: RateLimitAction) {
   if (env.NODE_ENV === "test" || !hasRuntimeTokenStoreConfig) {
     return;
@@ -84,7 +88,7 @@ export async function assertRateLimit(req: Request, action: RateLimitAction) {
 
   const rule = RATE_LIMIT_RULES[action];
   const now = Date.now();
-  const key = `rate_limit:${action}:${hashKey(getClientIp(req))}`;
+  const key = buildRateLimitStorageKey(action, getClientIp(req));
   const record = await readEdgeConfigItem<RateLimitRecord>(key);
   const next =
     record && record.resetAt > now
