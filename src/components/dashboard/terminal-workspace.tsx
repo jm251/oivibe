@@ -10,6 +10,7 @@ import {
   Target,
   Zap
 } from "lucide-react";
+import type { ReactNode } from "react";
 import { useEffect, useMemo } from "react";
 
 import { BuildupPanel } from "@/components/dashboard/buildup-panel";
@@ -174,6 +175,14 @@ function WorkspaceRail() {
   );
 }
 
+function CompactScroller({ children }: { children: ReactNode }) {
+  return (
+    <div className="-mx-1 overflow-x-auto px-1 pb-1">
+      <div className="flex min-w-max gap-2">{children}</div>
+    </div>
+  );
+}
+
 function RailButton({
   icon: Icon,
   label,
@@ -324,7 +333,7 @@ function QuickStrategyPanel({ symbol, spot }: { symbol: SupportedSymbol; spot: n
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <Button size="sm" variant="outline" onClick={() => setLegs(templateLegs("longStraddle", spot || 22500, lotSize))}>
             Straddle
           </Button>
@@ -335,7 +344,7 @@ function QuickStrategyPanel({ symbol, spot }: { symbol: SupportedSymbol; spot: n
             Spread
           </Button>
         </div>
-        <div className="grid grid-cols-2 gap-3 text-xs">
+        <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
           <MetricTile label="Break-evens" value={snapshot.breakEvens.length ? snapshot.breakEvens.join(", ") : "-"} />
           <MetricTile label="Quantity" value={String(quantity)} helper={`Lot ${lotSize}`} />
           <MetricTile label="Max Profit" value={snapshot.maxProfit.toLocaleString("en-IN")} tone="bull" />
@@ -395,12 +404,12 @@ export function TerminalWorkspace({ symbol, expiry, rows, aggregates, spot, time
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-card/80 px-4 py-3 backdrop-blur-sm">
+      <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-card/80 px-4 py-3 backdrop-blur-sm lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-[10px] uppercase tracking-[0.34em] text-muted-foreground">Terminal</p>
           <h2 className="mt-1 text-xl font-semibold tracking-tight">Chain-first intraday workspace</h2>
         </div>
-        <div className="hidden flex-wrap items-center gap-2 md:flex">
+        <div className="hidden flex-wrap items-center gap-2 lg:flex">
           {chainWindows.map((option) => (
             <Button
               key={option.value}
@@ -422,9 +431,38 @@ export function TerminalWorkspace({ symbol, expiry, rows, aggregates, spot, time
             </Button>
           ))}
         </div>
+        <div className="space-y-2 lg:hidden">
+          <CompactScroller>
+            {chainWindows.map((option) => (
+              <Button
+                key={option.value}
+                size="sm"
+                variant={chainWindow === option.value ? "default" : "outline"}
+                onClick={() => setChainWindow(option.value)}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </CompactScroller>
+          <CompactScroller>
+            {chainPresets.map((option) => (
+              <Button
+                key={option.value}
+                size="sm"
+                variant={chainPreset === option.value ? "secondary" : "outline"}
+                onClick={() => setChainPreset(option.value)}
+              >
+                {option.label}
+              </Button>
+            ))}
+            <Button size="sm" variant="outline" onClick={() => setWorkspaceMode("research")}>
+              Research
+            </Button>
+          </CompactScroller>
+        </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-5">
         <MetricTile
           label="Spot"
           value={spot.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
@@ -450,7 +488,7 @@ export function TerminalWorkspace({ symbol, expiry, rows, aggregates, spot, time
         />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[72px_minmax(0,1fr)_360px]">
+      <div className="grid gap-4 xl:grid-cols-[72px_minmax(0,1fr)_340px] 2xl:grid-cols-[72px_minmax(0,1fr)_360px]">
         <WorkspaceRail />
 
         <div className="space-y-4">
@@ -460,7 +498,7 @@ export function TerminalWorkspace({ symbol, expiry, rows, aggregates, spot, time
                 <p className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground">Live Lens</p>
                 <h3 className="mt-1 text-lg font-semibold tracking-tight">Primary market view</h3>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="hidden flex-wrap gap-2 sm:flex">
                 {chartTabs.map((tab) => (
                   <Button
                     key={tab.id}
@@ -472,6 +510,20 @@ export function TerminalWorkspace({ symbol, expiry, rows, aggregates, spot, time
                   </Button>
                 ))}
               </div>
+            </div>
+            <div className="sm:hidden">
+              <CompactScroller>
+                {chartTabs.map((tab) => (
+                  <Button
+                    key={tab.id}
+                    size="sm"
+                    variant={terminalChartView === tab.id ? "default" : "outline"}
+                    onClick={() => setTerminalChartView(tab.id)}
+                  >
+                    {tab.label}
+                  </Button>
+                ))}
+              </CompactScroller>
             </div>
             {terminalChartView === "timeline" ? <MarketChartsPanel timeline={timeline} /> : null}
             {terminalChartView === "flow" ? <FlowPanel aggregates={aggregates} /> : null}
@@ -490,7 +542,7 @@ export function TerminalWorkspace({ symbol, expiry, rows, aggregates, spot, time
                 <p className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground">Dock</p>
                 <h3 className="mt-1 text-lg font-semibold tracking-tight">Secondary analytics</h3>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="hidden flex-wrap gap-2 sm:flex">
                 {dockTabs.map((tab) => (
                   <Button
                     key={tab.id}
@@ -506,10 +558,27 @@ export function TerminalWorkspace({ symbol, expiry, rows, aggregates, spot, time
                 </Button>
               </div>
             </div>
+            <div className="sm:hidden">
+              <CompactScroller>
+                {dockTabs.map((tab) => (
+                  <Button
+                    key={tab.id}
+                    size="sm"
+                    variant={terminalDockView === tab.id ? "secondary" : "outline"}
+                    onClick={() => setTerminalDockView(tab.id)}
+                  >
+                    {tab.label}
+                  </Button>
+                ))}
+                <Button size="sm" variant="outline" onClick={() => setWorkspaceMode("research")}>
+                  Research
+                </Button>
+              </CompactScroller>
+            </div>
 
             {terminalDockView === "buildup" ? <BuildupPanel rows={rows} /> : null}
             {terminalDockView === "pulse" ? (
-              <div className="grid gap-4 xl:grid-cols-2">
+              <div className="grid gap-4 2xl:grid-cols-2">
                 <FlowPanel aggregates={aggregates} />
                 <OiHeatmapPanel rows={rows} />
               </div>
@@ -519,7 +588,7 @@ export function TerminalWorkspace({ symbol, expiry, rows, aggregates, spot, time
           </section>
         </div>
 
-        <div className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
           <SelectedContractPanel symbol={symbol} selectedRow={selectedRow} spot={spot} />
           <FeatureGate feature="strategy-lab" title="Strategy Quick Build">
             <QuickStrategyPanel symbol={symbol} spot={spot} />

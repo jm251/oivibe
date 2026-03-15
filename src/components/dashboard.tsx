@@ -25,23 +25,23 @@ export function Dashboard() {
   return (
     <>
       <CommandPalette />
-      <main className="mx-auto min-h-screen max-w-[1820px] p-4 sm:p-6">
+      <main className="mx-auto min-h-screen max-w-[1820px] px-3 py-4 sm:px-5 sm:py-6 lg:px-6">
         <div className="space-y-4">
-          <header className="rounded-[28px] border border-border/80 bg-card/85 px-5 py-4 backdrop-blur-sm">
+          <header className="rounded-[24px] border border-border/80 bg-card/85 px-4 py-4 backdrop-blur-sm sm:rounded-[28px] sm:px-5">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
               <div className="space-y-1">
                 <p className="text-xs uppercase tracking-[0.34em] text-bullish">OI VIBE 2026 Terminal</p>
-                <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                <h1 className="text-xl font-semibold tracking-tight sm:text-2xl lg:text-3xl">
                   Live NSE F&O intelligence for fast index decisions
                 </h1>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs text-muted-foreground sm:text-sm">
                   Spot {spot.toLocaleString("en-IN", { maximumFractionDigits: 2 })} - Updated{" "}
                   {updatedAt
                     ? formatDistanceToNowStrict(new Date(updatedAt), { addSuffix: true })
                     : "-"}
                 </p>
               </div>
-              <div className="max-w-xl text-sm text-muted-foreground xl:text-right">
+              <div className="max-w-xl text-xs text-muted-foreground sm:text-sm xl:text-right">
                 {workspaceMode === "terminal"
                   ? "Terminal mode keeps the option chain, live context, and quick strategy actions in one working surface."
                   : "Research mode exposes the full analytics stack for deeper scanning, replay, and structured strategy work."}

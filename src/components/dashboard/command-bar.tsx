@@ -245,8 +245,8 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
   return (
     <div className="rounded-xl border border-border/80 bg-panel/90 p-3 shadow-neon">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2 rounded-md bg-background/70 px-3 py-2">
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0">
+          <div className="flex min-w-fit items-center gap-2 rounded-md bg-background/70 px-3 py-2">
             {connected ? (
               <PlugZap className="h-4 w-4 text-bullish" />
             ) : (
@@ -257,14 +257,14 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
             </span>
             <span className={modeTone}>{mode.toUpperCase()}</span>
           </div>
-          <div className="flex items-center gap-2 rounded-md bg-background/70 px-3 py-2">
+          <div className="flex min-w-fit items-center gap-2 rounded-md bg-background/70 px-3 py-2">
             <Activity className="h-4 w-4 text-bullish" />
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Connection
             </span>
             <span className={connectionTone}>{connectionLabel}</span>
           </div>
-          <div className="flex items-center gap-2 rounded-md bg-background/70 px-3 py-2">
+          <div className="flex min-w-fit items-center gap-2 rounded-md bg-background/70 px-3 py-2">
             {adminUnlocked ? (
               <ShieldCheck className="h-4 w-4 text-bullish" />
             ) : (
@@ -277,7 +277,7 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
               {adminUnlocked ? "UNLOCKED" : "LOCKED"}
             </span>
           </div>
-          <div className="flex items-center gap-2 rounded-md bg-background/70 px-3 py-2">
+          <div className="flex min-w-fit items-center gap-2 rounded-md bg-background/70 px-3 py-2">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Source
             </span>
@@ -285,7 +285,7 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
               {(source ?? "none").toUpperCase()}
             </span>
           </div>
-          <div className="flex items-center gap-2 rounded-md bg-background/70 px-3 py-2">
+          <div className="flex min-w-fit items-center gap-2 rounded-md bg-background/70 px-3 py-2">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Workspace
             </span>
@@ -295,7 +295,7 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
           </div>
         </div>
 
-        <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-4 lg:max-w-3xl">
+        <div className="grid flex-1 grid-cols-1 gap-2 md:grid-cols-2 2xl:max-w-4xl 2xl:grid-cols-4">
           <Select
             value={symbol}
             onValueChange={(value) => setSymbol(value as SupportedSymbol)}
@@ -331,28 +331,28 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
             </SelectContent>
           </Select>
 
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={() => queryClient.invalidateQueries()}>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button className="flex-1 sm:flex-none" variant="secondary" onClick={() => queryClient.invalidateQueries()}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Refresh
             </Button>
             {isFeatureLocked("export-csv") ? (
               <PricingModal>
-                <Button variant="outline" size="sm">
+                <Button className="flex-1 sm:flex-none" variant="outline" size="sm">
                   <Download className="mr-2 h-4 w-4" />
                   CSV
                 </Button>
               </PricingModal>
             ) : (
-              <Button variant="outline" size="sm" onClick={handleExport}>
+              <Button className="flex-1 sm:flex-none" variant="outline" size="sm" onClick={handleExport}>
                 <Download className="mr-2 h-4 w-4" />
                 CSV
               </Button>
             )}
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 rounded-md border border-border/80 bg-background/70 p-1">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="grid flex-1 grid-cols-2 gap-1 rounded-md border border-border/80 bg-background/70 p-1 sm:flex sm:items-center sm:gap-2">
               <Button
                 size="sm"
                 variant={workspaceMode === "terminal" ? "default" : "ghost"}
@@ -370,7 +370,7 @@ export function CommandBar({ expiries, loadingExpiries }: CommandBarProps) {
             </div>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline">{operatorButtonLabel}</Button>
+                <Button className="w-full sm:w-auto" variant="outline">{operatorButtonLabel}</Button>
               </DialogTrigger>
               <DialogContent>
                 {!adminUnlocked ? (

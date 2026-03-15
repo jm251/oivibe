@@ -42,7 +42,7 @@ interface ResearchWorkspaceProps {
 
 function SectionLabel({ eyebrow, title }: { eyebrow: string; title: string }) {
   return (
-    <div className="flex items-end justify-between gap-3">
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <p className="text-[10px] uppercase tracking-[0.32em] text-muted-foreground">{eyebrow}</p>
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground">{title}</h2>
@@ -58,7 +58,7 @@ export function ResearchWorkspace({ symbol, expiry, rows, aggregates, spot, time
         <SectionLabel eyebrow="Research" title="Market Structure" />
         <MarketPulsePanel rows={rows} spot={spot} symbol={symbol} pcrOi={aggregates.pcrOi} />
         <div className="grid gap-4 xl:grid-cols-12">
-          <div className="space-y-4 xl:col-span-4">
+          <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 xl:col-span-4 xl:block">
             <OiHeatmapPanel rows={rows} />
             <FlowPanel aggregates={aggregates} />
             <MaxPainPanel rows={rows} spot={spot} />
@@ -76,7 +76,7 @@ export function ResearchWorkspace({ symbol, expiry, rows, aggregates, spot, time
 
       <section className="space-y-4">
         <SectionLabel eyebrow="Scanners" title="Trade Discovery" />
-        <div className="grid gap-4 xl:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <BuildupPanel rows={rows} />
           <StraddlePanel rows={rows} spot={spot} symbol={symbol} />
           <GexPanel rows={rows} spot={spot} symbol={symbol} />
@@ -89,7 +89,7 @@ export function ResearchWorkspace({ symbol, expiry, rows, aggregates, spot, time
 
       <section className="space-y-4">
         <SectionLabel eyebrow="Decision Support" title="Scenario and Positioning" />
-        <div className="grid gap-4 xl:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <ImpliedMovePanel spot={spot} symbol={symbol} />
           <IvPercentilePanel rows={rows} spot={spot} symbol={symbol} />
           <WhatIfPanel rows={rows} spot={spot} symbol={symbol} />

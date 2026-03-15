@@ -88,7 +88,7 @@ export function ChainGridPanel({ rows, spot, variant = "research" }: ChainGridPa
   const isProPreset = chainPreset === "pro";
 
   return (
-    <Card className={cn("flex h-full min-h-[520px] flex-col overflow-hidden", variant === "terminal" && "border-primary/15 bg-card/[0.9]")}>
+    <Card className={cn("flex h-full min-h-[420px] flex-col overflow-hidden sm:min-h-[520px]", variant === "terminal" && "border-primary/15 bg-card/[0.9]")}>
       <CardHeader className="border-b border-border/70 pb-3">
         <CardTitle className="flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -97,7 +97,7 @@ export function ChainGridPanel({ rows, spot, variant = "research" }: ChainGridPa
               Click a strike to stage quick strategy actions and contextual analytics.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs">
+          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 text-xs sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
             <Badge variant="warning">{visibleRows.length} strikes</Badge>
             <Badge variant="default">{chainPreset.toUpperCase()}</Badge>
             <Badge variant="default">{chainWindow.toUpperCase()}</Badge>
@@ -105,8 +105,8 @@ export function ChainGridPanel({ rows, spot, variant = "research" }: ChainGridPa
         </CardTitle>
       </CardHeader>
       <CardContent className="min-h-0 flex-1 p-0">
-        <ScrollArea className={cn("h-full", variant === "terminal" ? "max-h-[720px]" : "max-h-[640px]")}>
-          <table className="min-w-full border-separate border-spacing-0">
+        <ScrollArea className={cn("h-full w-full", variant === "terminal" ? "max-h-[640px] sm:max-h-[720px]" : "max-h-[560px] sm:max-h-[640px]")}>
+          <table className="w-max min-w-full border-separate border-spacing-0">
             <thead className="sticky top-0 z-20 shadow-[0_1px_0_rgba(255,255,255,0.04)]">
               <tr>
                 {isProPreset ? <HeaderCell>Bid</HeaderCell> : null}
