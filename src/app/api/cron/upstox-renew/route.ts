@@ -3,14 +3,13 @@ import {
   hasRuntimeTokenStoreConfig,
   hasUpstoxTokenRequestConfig
 } from "@/lib/env";
-import { requireAdminApiAccess } from "@/lib/security/guards";
-import { assertRateLimit, RateLimitError } from "@/lib/security/rate-limit";
+import { requireCronApiAccess } from "@/lib/security/guards";
 import { requestUpstoxApproval } from "@/lib/upstox/token-request-flow";
 
 export const runtime = "nodejs";
 
-export async function POST(req: Request) {
-  const unauthorized = await requireAdminApiAccess();
+export async function GET(req: Request) {
+  const unauthorized = requireCronApiAccess(req);
   if (unauthorized) {
     return unauthorized;
   }
@@ -23,17 +22,11 @@ export async function POST(req: Request) {
   }
 
   try {
-    await assertRateLimit(req, "token-request");
-    return ok(await requestUpstoxApproval(req.url));
+    return ok({
+      trigger: "cron",
+      ...(await requestUpstoxApproval(req.url))
+    });
   } catch (error) {
-    if (error instanceof RateLimitError) {
-      return fail(429, {
-        code: "RATE_LIMITED",
-        message: error.message,
-        resetAt: error.resetAt
-      });
-    }
-
     return fail(502, {
       code: "UPSTOX_TOKEN_REQUEST_FAILED",
       message: error instanceof Error ? error.message : "Upstox token request failed"

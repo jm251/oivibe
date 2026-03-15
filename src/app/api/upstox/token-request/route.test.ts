@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/env", () => ({
-  env: {
-    UPSTOX_NOTIFIER_SECRET: "notifier-secret-123"
-  },
   hasRuntimeTokenStoreConfig: true,
   hasUpstoxTokenRequestConfig: true
 }));
@@ -24,13 +21,13 @@ vi.mock("@/lib/security/rate-limit", () => ({
   }
 }));
 
-vi.mock("@/lib/upstox/rest", () => ({
-  requestUpstoxAccessToken: vi.fn()
+vi.mock("@/lib/upstox/token-request-flow", () => ({
+  requestUpstoxApproval: vi.fn()
 }));
 
 import { POST } from "@/app/api/upstox/token-request/route";
 import { requireAdminApiAccess } from "@/lib/security/guards";
-import { requestUpstoxAccessToken } from "@/lib/upstox/rest";
+import { requestUpstoxApproval } from "@/lib/upstox/token-request-flow";
 
 describe("POST /api/upstox/token-request", () => {
   it("rejects unauthenticated callers", async () => {
@@ -49,9 +46,9 @@ describe("POST /api/upstox/token-request", () => {
 
   it("requests approval without leaking notifier secrets", async () => {
     vi.mocked(requireAdminApiAccess).mockResolvedValue(null);
-    vi.mocked(requestUpstoxAccessToken).mockResolvedValue({
-      notifier_url: "https://oivibe-five.vercel.app/api/upstox/notifier/notifier-secret-123",
-      authorization_expiry: Date.UTC(2026, 2, 12, 4, 0, 0)
+    vi.mocked(requestUpstoxApproval).mockResolvedValue({
+      requested: true,
+      authorizationExpiry: "2026-03-12T04:00:00.000Z"
     });
 
     const response = await POST(

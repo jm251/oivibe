@@ -5,6 +5,7 @@ import { z } from "zod";
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   SESSION_SECRET: z.string().min(16).optional(),
+  CRON_SECRET: z.string().min(16).optional(),
   OI_VIBE_ADMIN_SECRET: z.string().min(16).optional(),
   UPSTOX_API_KEY: z.string().optional(),
   UPSTOX_API_SECRET: z.string().optional(),
@@ -22,6 +23,7 @@ const envSchema = z.object({
 export const env = envSchema.parse({
   NODE_ENV: process.env.NODE_ENV,
   SESSION_SECRET: process.env.SESSION_SECRET,
+  CRON_SECRET: process.env.CRON_SECRET,
   OI_VIBE_ADMIN_SECRET: process.env.OI_VIBE_ADMIN_SECRET,
   UPSTOX_API_KEY: process.env.UPSTOX_API_KEY,
   UPSTOX_API_SECRET: process.env.UPSTOX_API_SECRET,
@@ -40,6 +42,7 @@ export const env = envSchema.parse({
 if (env.NODE_ENV === "production") {
   const required = [
     ["SESSION_SECRET", env.SESSION_SECRET],
+    ["CRON_SECRET", env.CRON_SECRET],
     ["OI_VIBE_ADMIN_SECRET", env.OI_VIBE_ADMIN_SECRET],
     ["UPSTOX_ALLOWED_USER_ID", env.UPSTOX_ALLOWED_USER_ID],
     ["UPSTOX_NOTIFIER_SECRET", env.UPSTOX_NOTIFIER_SECRET]

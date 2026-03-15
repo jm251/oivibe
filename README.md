@@ -29,6 +29,7 @@ Copy `.env.example` to `.env` and set values:
 
 ```bash
 SESSION_SECRET=replace-with-32-char-secret
+CRON_SECRET=replace-with-32-char-cron-secret
 OI_VIBE_ADMIN_SECRET=replace-with-32-char-operator-secret
 UPSTOX_API_KEY=
 UPSTOX_API_SECRET=
@@ -42,7 +43,7 @@ UPSTOX_RUNTIME_VERCEL_API_TOKEN=
 UPSTOX_RUNTIME_VERCEL_TEAM_ID=
 ```
 
-Production requires `SESSION_SECRET`, `OI_VIBE_ADMIN_SECRET`, `UPSTOX_ALLOWED_USER_ID`, and `UPSTOX_NOTIFIER_SECRET`.
+Production requires `SESSION_SECRET`, `CRON_SECRET`, `OI_VIBE_ADMIN_SECRET`, `UPSTOX_ALLOWED_USER_ID`, and `UPSTOX_NOTIFIER_SECRET`.
 If `UPSTOX_ACCESS_TOKEN` is invalid/missing, OI VIBE runs in realistic live simulator mode.
 If you want browser login instead of pasting a token, `UPSTOX_REDIRECT_URI` must exactly match the callback URL registered in your Upstox app.
 If you want daily runtime renewal without editing env vars, configure the Upstox notifier webhook to:
@@ -53,6 +54,7 @@ https://your-domain/api/upstox/notifier/<UPSTOX_NOTIFIER_SECRET>
 
 Then use the runtime token request flow, which stores the latest approved token in Vercel Edge Config instead of a deployment env var.
 Set `UPSTOX_ALLOWED_USER_ID` to the only Upstox account allowed to power live mode in this deployment.
+If you want Vercel to trigger a daily approval request, keep `CRON_SECRET` configured and deploy the built-in cron route. OI VIBE schedules `/api/cron/upstox-renew` for `21:50 UTC`, which is `03:20 IST`.
 
 ## Upstox Notes
 
@@ -60,6 +62,7 @@ Set `UPSTOX_ALLOWED_USER_ID` to the only Upstox account allowed to power live mo
 - No paid market-data or order APIs are required for the dashboard runtime.
 - Upstox access tokens are daily tokens. OI VIBE stores operator-approved tokens with the next `3:30 AM IST` expiry window, keeps the last successful live snapshot, and requests a fresh session instead of silently falling back to mock.
 - OI VIBE also supports a Vercel runtime-token flow for Upstox: request approval, receive the token on a notifier webhook, and store it in Edge Config so production does not need daily env edits or redeploys.
+- OI VIBE ships with a daily Vercel cron request for Upstox approval. The job only triggers the approval request; the final broker approval is still required on Upstox's side.
 - Public visitors can view the dashboard, but only an unlocked operator session can mutate runtime credentials or trigger Upstox auth flows.
 - Local replay recording uses `Dexie` + IndexedDB in the browser. No extra backend, paid API, or storage key is required.
 - Replay cache keeps bounded daily sessions locally, supports JSON session export/import across browsers, and runs SQL analytics directly in the browser with `DuckDB-Wasm`.
@@ -70,6 +73,8 @@ Official Upstox docs:
 - Token exchange: `https://upstox.com/developer/api-documentation/get-token/`
 - Put/Call option chain: `https://upstox.com/developer/api-documentation/get-pc-option-chain/`
 - Market Data Feed V3: `https://upstox.com/developer/api-documentation/get-market-data-feed/`
+- Access Token Request: `https://upstox.com/developer/api-documentation/access-token-request/`
+- Vercel Cron Jobs: `https://vercel.com/docs/cron-jobs`
 
 ## Run
 
